@@ -42,7 +42,8 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
     );
 
    // pkt from coords
-   logic  [x_cord_width_p-1:0] from_cord_y, from_cord_x;
+   logic  [x_cord_width_p-1:0] from_x_cord;
+   logic  [y_cord_width_p-1:0] from_y_cord;
    
    //Quick implementation of ourstanding store counter:
    localparam str_cntr_wid_lp = 16;
@@ -112,6 +113,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
                              ,.addr_width_p  (addr_width_p )
                              ) pkt_decode
      (.v_i                 (ret_cgni_v)
+     //(.v_i                 (cgni_v)
       ,.data_i             (cgni_data)
       ,.pkt_freeze_o       (pkt_freeze)
       ,.pkt_unfreeze_o     (pkt_unfreeze)
@@ -120,8 +122,8 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
       ,.pkt_remote_store_o (remote_store_v)
       ,.data_o             (remote_store_data)
       ,.addr_o             (remote_store_addr)
-	  ,.from_y_cord_o      (from_y_cord)
-	  ,.from_x_cord_o      (from_x_cord)
+      ,.from_y_cord_o      (from_y_cord)
+      ,.from_x_cord_o      (from_x_cord)
       );
 
    // deque if we successfully do a remote store, or if it's
@@ -176,9 +178,12 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
 	   //the remote load cannot be waiting on any other loads, so it's safe to bypass
 	   //the mem_banked_crossbar. If this is not the case, we will see it in sim.
        ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1] | ret_store_cntr
+       //,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1]
                        , core_mem_yumi[0]})
        ,.m_v_i       ({core_mem_rv[1] | ret_store_cntr, core_mem_rv[0]})
+       //,.m_v_i       (core_mem_rv)
        ,.m_data_i    ( {muxed_core_mem_rdata, core_mem_rdata[0]} )
+       //,.m_data_i    ( core_mem_rdata)
        ,.my_x_i (my_x_i)
        ,.my_y_i (my_y_i)
        );
