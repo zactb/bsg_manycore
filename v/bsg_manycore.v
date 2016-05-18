@@ -1,4 +1,5 @@
 `include "bsg_manycore_packet.vh"
+`include "bsg_manycore_orig_packet.vh"
 
 module bsg_manycore
 
@@ -25,8 +26,8 @@ import bsg_vscale_pkg::*
    ,parameter x_cord_width_lp   = `BSG_SAFE_CLOG2(num_tiles_x_p)
    ,parameter y_cord_width_lp   = `BSG_SAFE_CLOG2(num_tiles_y_p + 1)
    ,parameter packet_width_lp   = `bsg_manycore_packet_width(addr_width_p,data_width_p,x_cord_width_lp,y_cord_width_lp)
-   ,parameter orig_packet_width_lp  = `bsg_manycore_packet_width(addr_width_p,data_width_p,x_cord_width_lp,y_cord_width_lp) - (x_cord_width_lp + y_cord_width_lp)
-   ,parameter ret_packet_width_lp   = `bsg_manycore_packet_width(1,1,x_cord_width_lp,y_cord_width_lp)
+   ,parameter orig_packet_width_lp  = `bsg_manycore_orig_packet_width(addr_width_p,data_width_p,x_cord_width_lp,y_cord_width_lp) 
+   ,parameter ret_packet_width_lp   = 5 + x_cord_width_lp + y_cord_width_lp 
 
    // array i/o params
    ,parameter stub_w_p          = {num_tiles_y_p{1'b0}}

@@ -4,10 +4,11 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
                            , y_cord_width_p = "inv"
                            , data_width_p   = 32
                            , addr_width_p   = 32
-                           , ret_packet_width_lp = `bsg_manycore_packet_width(1,1,x_cord_width_p,y_cord_width_p)
+                           //, ret_packet_width_lp = `bsg_manycore_packet_width(1,1,x_cord_width_p,y_cord_width_p)
+                           , ret_packet_width_lp = 5 + x_cord_width_p + y_cord_width_p
                            , packet_width_lp = `bsg_manycore_packet_width(addr_width_p,data_width_p,x_cord_width_p,y_cord_width_p)
 
-                           , debug_p        = 0
+                           , debug_p        = 1
                            , bank_size_p    = "inv" // in words
                            , num_banks_p    = "inv"
 
@@ -113,8 +114,8 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
                              ,.data_width_p  (data_width_p )
                              ,.addr_width_p  (addr_width_p )
                              ) pkt_decode
-     (.v_i                 (ret_cgni_v)
-     //(.v_i                 (cgni_v)
+     //(.v_i                 (ret_cgni_v)
+     (.v_i                 (cgni_v)
       ,.data_i             (cgni_data)
       ,.pkt_freeze_o       (pkt_freeze)
       ,.pkt_unfreeze_o     (pkt_unfreeze)
@@ -208,13 +209,13 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
 	   //At the same time as yumi. Based on my understanding of the vscale core,
 	   //the remote load cannot be waiting on any other loads, so it's safe to bypass
 	   //the mem_banked_crossbar. If this is not the case, we will see it in sim.
-       ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1] | ret_store_cntr
-       //,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1]
+       //,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1] | ret_store_cntr
+       ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1]
                        , core_mem_yumi[0]})
-       ,.m_v_i       ({core_mem_rv[1] | ret_store_cntr, core_mem_rv[0]})
-       //,.m_v_i       (core_mem_rv)
-       ,.m_data_i    ( {muxed_core_mem_rdata, core_mem_rdata[0]} )
-       //,.m_data_i    ( core_mem_rdata)
+       //,.m_v_i       ({core_mem_rv[1] | ret_store_cntr, core_mem_rv[0]})
+       ,.m_v_i       (core_mem_rv)
+       //,.m_data_i    ( {muxed_core_mem_rdata, core_mem_rdata[0]} )
+       ,.m_data_i    ( core_mem_rdata)
        ,.my_x_i (my_x_i)
        ,.my_y_i (my_y_i)
        );

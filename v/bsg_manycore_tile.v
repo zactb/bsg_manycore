@@ -17,7 +17,7 @@ import bsg_vscale_pkg::*
    ,parameter mem_addr_width_lp = $clog2(num_banks_p) + `BSG_SAFE_CLOG2(bank_size_p)
                                     + x_cord_width_p + y_cord_width_p
                                     + addr_width_p + data_width_p
-   ,parameter ret_packet_width_lp = `bsg_manycore_packet_width(1,1,x_cord_width_p,y_cord_width_p)
+   ,parameter ret_packet_width_lp = 5 + x_cord_width_p + y_cord_width_p
     ,parameter packet_width_lp   = `bsg_manycore_packet_width(addr_width_p,data_width_p,x_cord_width_p,y_cord_width_p)
 
    ,parameter debug_p = 0
