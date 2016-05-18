@@ -1,4 +1,4 @@
-`include "bsg_manycore_packet.vh"
+`include "bsg_manycore_orig_packet.vh"
 
 
 `define SPMD       ????             // test program to be loaded
@@ -65,7 +65,7 @@ module bsg_manycore_tile_trace #(packet_width_lp="inv"
     , input freeze
     );
 
-   `declare_bsg_manycore_packet_s(addr_width_p,data_width_p,x_cord_width_p,y_cord_width_p);
+   `declare_bsg_manycore_orig_packet_s(addr_width_p,data_width_p,x_cord_width_p,y_cord_width_p);
 
    bsg_manycore_packet_s [dirs_lp-1:0] pkt;
    assign pkt = data_o;
@@ -116,7 +116,7 @@ module bsg_manycore_proc_trace #(parameter mem_width_lp=-1
    );
 
 
-   `declare_bsg_manycore_packet_s(addr_width_p,data_width_p,x_cord_width_p,y_cord_width_p);
+   `declare_bsg_manycore_orig_packet_s(addr_width_p,data_width_p,x_cord_width_p,y_cord_width_p);
 
    bsg_manycore_packet_s [1:0] packets;
 

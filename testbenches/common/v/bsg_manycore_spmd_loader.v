@@ -1,4 +1,4 @@
-`include "bsg_manycore_packet.vh"
+`include "bsg_manycore_orig_packet.vh"
 
 module bsg_manycore_spmd_loader
 
@@ -16,7 +16,7 @@ import  bsg_vscale_pkg::*  // vscale constants
 
    ,parameter y_cord_width_lp  = `BSG_SAFE_CLOG2(num_rows_p + 1)
    ,parameter x_cord_width_lp  = `BSG_SAFE_CLOG2(num_cols_p)
-   ,parameter packet_width_lp = `bsg_manycore_packet_width(addr_width_p,data_width_p,x_cord_width_lp,y_cord_width_lp)
+   ,parameter packet_width_lp = `bsg_manycore_orig_packet_width(addr_width_p,data_width_p,x_cord_width_lp,y_cord_width_lp)
   )
   ( input                        clk_i
    ,input                        reset_i
@@ -47,7 +47,7 @@ import  bsg_vscale_pkg::*  // vscale constants
   assign y_cord     = y_cord_width_lp'(tile_no / num_cols_p);
   assign x_cord     = x_cord_width_lp'(tile_no % num_cols_p);
 
-   `declare_bsg_manycore_packet_s(addr_width_p,data_width_p,x_cord_width_lp,y_cord_width_lp);
+   `declare_bsg_manycore_orig_packet_s(addr_width_p,data_width_p,x_cord_width_lp,y_cord_width_lp);
 
    bsg_manycore_packet_s pkt;
 
