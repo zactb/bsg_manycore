@@ -51,13 +51,14 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
    logic out_store_v = v_o; //TODO: ensure signal is only node-to-node remote stores, no peripherals.
    logic [str_cntr_wid_lp:0] out_stores; //minimum width is ceil(log(num cores * 2 directions * pipeline depth))
    logic ret_store_cntr; //returns the store counter on a remote load.
-   
+   logic ret_v_nonlocal = ret_v_i & (my_x_i != from_x_cord || my_y_i != from_y_cord); //only decrement on nonlocal remote store (prevents attempted decrement when loading)
+
    always_ff @(posedge clk_i) begin
-     if(~(out_store_v^ret_v_i)) begin //both or neither
+     if(~(out_store_v^ret_v_nonlocal)) begin //both or neither
 	   out_stores <= out_stores;
 	 end else if (out_store_v) begin
 	   out_stores <= out_stores+1;
-	 end else if (ret_v_i) begin
+	 end else if (ret_v_nonlocal) begin
 	   out_stores <= (out_stores==0) ? 0 : out_stores-1;
 	   if(out_stores==0) $display("ERROR: NEGATIVE OUTSTANDING STORE COUNTER AT NODE: x%x y%x",my_x_i,my_y_i);
 	 end
