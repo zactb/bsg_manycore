@@ -188,7 +188,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
        ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1]
                        , core_mem_yumi[0]})
        ,.m_v_i       (core_mem_rv)
-       ,.m_data_i    ( core_mem_rdata)
+       ,.m_data_i    (core_mem_rdata)
        ,.my_x_i (my_x_i)
        ,.my_y_i (my_y_i)
        );
