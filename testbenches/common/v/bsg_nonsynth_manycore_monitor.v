@@ -73,7 +73,7 @@ module bsg_nonsynth_manycore_monitor #(parameter xcord_width_p="inv"
                                   ,(pkt_cast[i].data & 16'hffff)
                                   , i,trace_count,trace_count);
                       end
-                    default:
+                    default: 
                       $display("## received I/O device %x, addr %x, data %x on cycle 0x%x (%d)",i,pkt_cast[i].addr, pkt_cast[i].data,trace_count,trace_count);
                   endcase
                end

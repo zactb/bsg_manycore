@@ -67,7 +67,7 @@ module bsg_manycore_tile_trace #(packet_width_lp="inv"
 
    `declare_bsg_manycore_orig_packet_s(addr_width_p,data_width_p,x_cord_width_p,y_cord_width_p);
 
-   bsg_manycore_packet_s [dirs_lp-1:0] pkt;
+   bsg_manycore_orig_packet_s [dirs_lp-1:0] pkt;
    assign pkt = data_o;
 
    genvar i;
@@ -118,7 +118,7 @@ module bsg_manycore_proc_trace #(parameter mem_width_lp=-1
 
    `declare_bsg_manycore_orig_packet_s(addr_width_p,data_width_p,x_cord_width_p,y_cord_width_p);
 
-   bsg_manycore_packet_s [1:0] packets;
+   bsg_manycore_orig_packet_s [1:0] packets;
 
    genvar i;
 
@@ -327,7 +327,11 @@ module test_bsg_manycore;
      ,.hor_v_o  ()
      ,.hor_ready_i   (hor_ready_in)
     );
-
+/* 
+   always_ff@(negedge clk) begin
+     $display("Testbench input: hor_v_i: %b", hor_v_in);
+   end
+*/
    logic [num_tiles_x_lp-1:0][num_tiles_y_lp-1:0][31:0] imem_stalls;
    logic [num_tiles_x_lp-1:0][num_tiles_y_lp-1:0][31:0] dmem_stalls;
    logic [num_tiles_x_lp-1:0][num_tiles_y_lp-1:0][31:0] dx_stalls;

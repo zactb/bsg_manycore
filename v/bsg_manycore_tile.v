@@ -15,8 +15,6 @@ import bsg_vscale_pkg::*
    ,parameter data_width_p      = hdata_width_p
    ,parameter addr_width_p      = haddr_width_p
    ,parameter mem_addr_width_lp = $clog2(num_banks_p) + `BSG_SAFE_CLOG2(bank_size_p)
-                                    + x_cord_width_p + y_cord_width_p
-                                    + addr_width_p + data_width_p
    ,parameter ret_packet_width_lp = 5 + x_cord_width_p + y_cord_width_p
     ,parameter packet_width_lp   = `bsg_manycore_packet_width(addr_width_p,data_width_p,x_cord_width_p,y_cord_width_p)
 
@@ -56,7 +54,19 @@ import bsg_vscale_pkg::*
    logic [ret_packet_width_lp-1:0] ret_proc_to_router_data, ret_router_to_proc_data;
    logic                       ret_proc_to_router_ready, ret_router_to_proc_ready,
 							   ret_proc_to_router_v, ret_router_to_proc_v;
-   
+/*
+   always@(negedge clk_i) begin
+     if(1) begin
+       //$display("v_i: %b\tv_o: %b\tmy_x_i: %d\tmy_y_i: %d", {v_i, proc_to_router_v}, {v_o, router_to_proc_v}, my_x_i, my_y_i);
+       $display("v_i: %b\tdata: %h\tready: %b\tmy_x_i: %d\tmy_y_i: %d", 
+		{v_i, proc_to_router_v}, 
+      		{ data_i,  proc_to_router_data },
+      		{ ready_o, proc_to_router_ready},
+		my_x_i, 
+		my_y_i);
+     end
+   end 
+*/
    bsg_mesh_router_buffered #(.width_p(packet_width_lp)
                               ,.x_cord_width_p(x_cord_width_p)
                               ,.y_cord_width_p(y_cord_width_p)

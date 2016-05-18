@@ -106,7 +106,7 @@ int main()
   bsg_remote_ptr_io_store(0,0x1264,bsg_y);
 
   bsg_remote_ptr_io_store(0,0x1234,0x13);
-  
+/*  
   //Core (1,1) sends to core (0,0)  
   if(bsg_volatile_access(bsg_x) == 1 && bsg_volatile_access(bsg_y) == 1) {
     send(0, 0, &data, data, bsg_volatile_access(bsg_x), bsg_volatile_access(bsg_y));
@@ -120,7 +120,7 @@ int main()
 
   //Barrier to prevent an early finish from occurring.
   barrier3(bsg_x, bsg_y, barr);
-
+*/
   if ((bsg_x == bsg_tiles_X-1) && (bsg_y == bsg_tiles_Y-1))
     bsg_finish();
 

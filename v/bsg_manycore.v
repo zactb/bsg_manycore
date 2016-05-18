@@ -206,9 +206,28 @@ import bsg_vscale_pkg::*
       );
     end
   end
-
-   
-
+/*
+     for(r = 0; r < num_tiles_y_p; r = r+1) 
+     begin: outer
+       for(c = 0; c < num_tiles_x_p; c = c+1) 
+       begin: inner
+         always_ff@(negedge clk_i) begin
+           $display("Tile (%d,%d)'s v_i: %b", c, r, {
+ 	         	ver_v_i[S][c],
+                       	ver_v_i[N][c],
+                       	hor_v_i[E][r],
+                       	hor_v_i[W][r]
+                    });
+	  $display("v_out: %b", {
+                       	v_out[r+1][c][N], // s
+                       	v_out[r-1][c][S], // n
+                        v_out[r][c+1][W], // e
+                        v_out[r][c-1][E] // w
+                    });
+       end
+     end
+   end
+*/
   /* OUTPUTS */
 
   for(r = 0; r < num_tiles_y_p; r = r+1)

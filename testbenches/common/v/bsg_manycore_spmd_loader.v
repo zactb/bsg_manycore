@@ -49,7 +49,7 @@ import  bsg_vscale_pkg::*  // vscale constants
 
    `declare_bsg_manycore_orig_packet_s(addr_width_p,data_width_p,x_cord_width_lp,y_cord_width_lp);
 
-   bsg_manycore_packet_s pkt;
+   bsg_manycore_orig_packet_s pkt;
 
    always_comb
      begin
