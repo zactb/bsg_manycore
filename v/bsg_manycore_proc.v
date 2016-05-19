@@ -53,14 +53,14 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
    logic ret_store_cntr; //returns the store counter on a remote load.
 
    always_ff @(posedge clk_i) begin
-     if(~(out_store_v^ret_v_i)) begin //both or neither
+       if(~(out_store_v^ret_v_i)) begin //both or neither
 	   out_stores <= out_stores;
-	 end else if (out_store_v) begin
+       end else if (out_store_v) begin
 	   out_stores <= out_stores+1;
-	 end else if (ret_v_i) begin
+       end else if (ret_v_i) begin
 	   out_stores <= (out_stores==0) ? 0 : out_stores-1;
-	   if(out_stores==0) $display("ERROR: NEGATIVE OUTSTANDING STORE COUNTER AT NODE: x%x y%x",my_x_i,my_y_i);
-	 end
+           if(out_stores==0) $display("ERROR: NEGATIVE OUTSTANDING STORE COUNTER AT NODE: x%x y%x",my_x_i,my_y_i);
+       end
    end
 	
    // input fifo from network
@@ -113,8 +113,8 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
                              ,.data_width_p  (data_width_p )
                              ,.addr_width_p  (addr_width_p )
                              ) pkt_decode
-     //(.v_i                 (ret_cgni_v)
-     (.v_i                 (cgni_v)
+     (.v_i                 (ret_cgni_v)
+     //(.v_i                 (cgni_v)
       ,.data_i             (cgni_data)
       ,.pkt_freeze_o       (pkt_freeze)
       ,.pkt_unfreeze_o     (pkt_unfreeze)
@@ -235,9 +235,9 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
       ,.addr_i (core_mem_addr [1])
       ,.we_i   (core_mem_w    [1])
       ,.mask_i (core_mem_mask [1])
-	  ,.from_y_cord_i(my_y_i)
+      ,.from_y_cord_i(my_y_i)
       ,.from_x_cord_i(my_x_i)
-	  ,.ret_store_cntr_o(ret_store_cntr)
+      ,.ret_store_cntr_o(ret_store_cntr)
       // directly out to the network!
       ,.v_o    (v_o   )
       ,.data_o (data_o)
