@@ -16,8 +16,10 @@ import bsg_vscale_pkg::*
    ,parameter num_tiles_y_p     = "inv"
    ,parameter x_cord_width_lp    = `BSG_SAFE_CLOG2(num_tiles_x_p)
    ,parameter y_cord_width_lp    = `BSG_SAFE_CLOG2(num_tiles_y_p + 1)
-   ,parameter packet_width_lp   = 6 + x_cord_width_lp + y_cord_width_lp
+   ,parameter packet_width_lp   = 6 + x_cord_width_lp + y_cord_width_lp 
+                                    + x_cord_width_lp + y_cord_width_lp
                                     + addr_width_p + data_width_p
+   ,parameter ret_packet_width_lp = 5 + x_cord_width_lp + y_cord_width_lp
 
    // array i/o params
    ,parameter stub_w_p          = {num_tiles_y_p{1'b0}}
@@ -63,6 +65,10 @@ import bsg_vscale_pkg::*
   logic [num_tiles_y_p-1:0][num_tiles_x_p-1:0][S:W][packet_width_lp-1:0] data_out;
   logic [num_tiles_y_p-1:0][num_tiles_x_p-1:0][S:W]                      v_out;
   logic [num_tiles_y_p-1:0][num_tiles_x_p-1:0][S:W]                      ready_out;
+  
+  logic [num_tiles_y_p-1:0][num_tiles_x_p-1:0][S:W][ret_packet_width_lp-1:0] ret_data_out;
+  logic [num_tiles_y_p-1:0][num_tiles_x_p-1:0][S:W]                      ret_v_out;
+  logic [num_tiles_y_p-1:0][num_tiles_x_p-1:0][S:W]                      ret_ready_out;
 
   genvar r,c;
 
@@ -118,6 +124,38 @@ import bsg_vscale_pkg::*
                     }
                    )
         ,.ready_o  (ready_out[r][c])
+		
+		
+
+        ,.ret_data_i ({ (r == num_tiles_y_p-1)
+                       ? 0
+                       : ret_data_out[r+1][c][N] // s
+                     ,(r == 0)
+                       ? 0
+                       : ret_data_out[r-1][c][S] // n
+                     ,(c == num_tiles_x_p-1)
+                       ? 0
+                       : ret_data_out[r][c+1][W] // e
+                     ,(c == 0)
+                       ? 0
+                       : ret_data_out[r][c-1][E] // w
+                    }
+                   )
+        ,.ret_v_i  ({ (r == num_tiles_y_p-1)
+                       ? 0
+                       : ret_v_out[r+1][c][N] // s
+                     ,(r == 0)
+                       ? 0
+                       : ret_v_out[r-1][c][S] // n
+                     ,(c == num_tiles_x_p-1)
+                       ? 0
+                       : ret_v_out[r][c+1][W] // e
+                     ,(c == 0)
+                       ? 0
+                       : ret_v_out[r][c-1][E] // w
+                    }
+                   )
+        ,.ret_ready_o  (ret_ready_out[r][c])
 
         ,.data_o  (data_out[r][c])
         ,.v_o  (v_out[r][c])
@@ -134,6 +172,24 @@ import bsg_vscale_pkg::*
                      ,(c == 0)
                        ? hor_ready_i[W][r]
                        : ready_out[r][c-1][E] // w
+                    }
+                   )
+				   
+        ,.ret_data_o  (ret_data_out[r][c])
+        ,.ret_v_o  (ret_v_out[r][c])
+        ,.ret_ready_i   (
+                    { (r == num_tiles_y_p-1)
+                       ? 0
+                       : ret_ready_out[r+1][c][N] // s
+                     ,(r == 0)
+                       ? 0
+                       : ret_ready_out[r-1][c][S] // n
+                     ,(c == num_tiles_x_p-1)
+                       ? 0
+                       : ret_ready_out[r][c+1][W] // e
+                     ,(c == 0)
+                       ? 0
+                       : ret_ready_out[r][c-1][E] // w
                     }
                    )
 

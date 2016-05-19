@@ -10,10 +10,13 @@ module bsg_manycore_pkt_encode #(
     input clk_i // for debug only
     ,input v_i
     ,input [addr_width_p-1:0] addr_i
-    ,input [data_width_p-1:0] data_i
+    ,input [data_width_p-1:0] data_i 
     ,input [(data_width_p>>3)-1:0] mask_i
+    ,input [y_cord_width_p-1:0] from_y_cord_i;
+    ,input [x_cord_width_p-1:0] from_x_cord_i;
     ,input we_i
     ,output v_o
+	,output ret_store_cntr_o
     ,output [packet_width_lp-1:0] data_o
     );
 
@@ -28,6 +31,8 @@ module bsg_manycore_pkt_encode #(
       logic [5:0] op;
       logic [addr_width_p-1:0] addr;
       logic [data_width_p-1:0] data;
+      logic [y_cord_width_p-1:0] from_y_cord;
+      logic [x_cord_width_p-1:0] from_x_cord;
       logic [y_cord_width_p-1:0] y_cord;
       logic [x_cord_width_p-1:0] x_cord;
    } bsg_manycore_packet_s;
@@ -43,10 +48,11 @@ module bsg_manycore_pkt_encode #(
    assign pkt.data   = data_i;
    assign pkt.x_cord = addr_decode.x_cord;
    assign pkt.y_cord = addr_decode.y_cord;
+   assign pkt.from_x_cord = from_y_cord_i;
+   assign pkt.from_y_cord = from_x_cord_i;
 
    assign v_o = addr_decode.remote & we_i & v_i;
-
-
+   assign ret_store_cntr_o = addr_decode.remote & ~we_i & v_i;
 
    // synopsys translate off
    if (debug_p)
@@ -59,8 +65,8 @@ module bsg_manycore_pkt_encode #(
      begin
         if (addr_decode.remote & ~we_i & v_i)
           begin
-             $error("%m load to remote address %x", addr_i);
-             $finish();
+             //$error("%m load to remote address %x", addr_i);
+             //$finish();
           end
         if (addr_decode.remote & we_i & v_i & (|addr_i[1:0]))
           begin

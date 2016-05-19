@@ -2,7 +2,10 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
                            , y_cord_width_p = "inv"
                            , data_width_p   = 32
                            , addr_width_p   = 32
-                           , packet_width_lp = 6 + x_cord_width_p + y_cord_width_p + data_width_p + addr_width_p
+                           , packet_width_lp = 6 + x_cord_width_p + y_cord_width_p 
+						                         + x_cord_width_p + y_cord_width_p
+						                         + data_width_p + addr_width_p
+                           , ret_packet_width_lp = 1 + x_cord_width_p + y_cord_width_p + 1 + 1 + 1 + 1
 
                            , debug_p        = 0
                            , bank_size_p    = 2048 // in words
@@ -22,18 +25,50 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
     , output v_o
     , output [packet_width_lp-1:0] data_o
     , input ready_i
+	
+    , input ret_v_i
+    , input [ret_packet_width_lp-1:0] ret_data_i
+    , output ret_ready_o
 
-    // tile coordinates
+    , output ret_v_o
+    , output [ret_packet_width_lp-1:0] ret_data_o
+    , input ret_ready_i
+
+    // tile coordinates 
     , input   [x_cord_width_p-1:0]                 my_x_i
     , input   [y_cord_width_p-1:0]                 my_y_i
 
     , output logic freeze_o
     );
 
+   // pkt from coords
+   logic  [x_cord_width_p-1:0] from_cord_y, from_cord_x;
+   
+   //Quick implementation of ourstanding store counter:
+   localparam str_cntr_wid_lp = 16;
+   assign ret_ready_o = 1'b1;// Always accepts incoming messages.
+   logic out_store_v = v_o; //TODO: ensure signal is only node-to-node remote stores, no peripherals.
+   logic [str_cntr_wid_lp:0] out_stores; //minimum width is ceil(log(num cores * 2 directions * pipeline depth))
+   logic ret_store_cntr; //returns the store counter on a remote load.
+   
+   always_ff @(posedge clk_i) begin
+     if(~(out_store_v^ret_v_i)) begin //both or neither
+	   out_stores <= out_stores;
+	 end else if (out_store_v) begin
+	   out_stores <= outstanding+stores+1;
+	 end else if (ret_v_i) begin
+	   out_stores <= (out_stores==0) ? 0 : out_stores-1;
+	   if(out_stores==0) $display("ERROR: NEGATIVE OUTSTANDING STORE COUNTER AT NODE: x%x y%x",my_x_i,my_y_i);
+	 end
+   end
+	
    // input fifo from network
 
-   logic cgni_v, cgni_yumi;
+   logic cgni_v, cgni_yumi, ret_cgni_v;
    logic [packet_width_lp-1:0] cgni_data;
+   
+   //Do not store if we can't send a return message.
+   assign ret_cgni_v = cgni_v & ret_ready_i;
 
    // this fifo buffers incoming remote store requests
    // it is a little bigger than the standard twofer to accomodate
@@ -54,6 +89,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
       ,.yumi_i (cgni_yumi)
       );
 
+
    // decode incoming packet
    logic                       pkt_freeze, pkt_unfreeze, pkt_remote_store, pkt_unknown;
    logic [data_width_p-1:0]    remote_store_data;
@@ -67,7 +103,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
 
    if (debug_p)
      always_ff @(negedge clk_i)
-       if (cgni_v)
+       if (ret_cgni_v)
          $display("%m data %x avail on cgni (cgni_yumi=%x,remote_store_v=%x, remote_store_addr=%x, remote_store_data=%x, remote_store_yumi=%x)",cgni_data,cgni_yumi,remote_store_v,remote_store_addr, remote_store_data, remote_store_yumi);
 
    bsg_manycore_pkt_decode #(.x_cord_width_p (x_cord_width_p)
@@ -75,7 +111,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
                              ,.data_width_p  (data_width_p )
                              ,.addr_width_p  (addr_width_p )
                              ) pkt_decode
-     (.v_i                 (cgni_v)
+     (.v_i                 (ret_cgni_v)
       ,.data_i             (cgni_data)
       ,.pkt_freeze_o       (pkt_freeze)
       ,.pkt_unfreeze_o     (pkt_unfreeze)
@@ -84,6 +120,8 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
       ,.pkt_remote_store_o (remote_store_v)
       ,.data_o             (remote_store_data)
       ,.addr_o             (remote_store_addr)
+	  ,.from_y_cord_o      (from_y_cord)
+	  ,.from_x_cord_o      (from_x_cord)
       );
 
    // deque if we successfully do a remote store, or if it's
@@ -131,12 +169,21 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
 
        // for data port (1), either the network or the banked memory can
        // deque the item.
-       ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1]
+	   //TODO: Added some hacky method of returning the outstanding stores counter
+	   //At the same time as yumi. Based on my understanding of the vscale core,
+	   //the remote load cannot be waiting on any other loads, so it's safe to bypass
+	   //the mem_banked_crossbar. If this is not the case, we will see it in sim.
+       ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1] | ret_store_cntr
                        , core_mem_yumi[0]})
-       ,.m_v_i       (core_mem_rv)
-       ,.m_data_i    (core_mem_rdata)
+       ,.m_v_i       ({core_mem_rv[1] | ret_store_cntr, core_mem_rv[0]})
+       ,.m_data_i    ({ret_store_cntr 
+						? {[(data_width_p-str_cntr_wid_lp)-1:0]'b0,out_stores} 
+						: core_mem_rdata[1], core_mem_rdata[0]})
        );
-
+   always_ff @(negedge clk_i) 
+     if(core_mem_rv[1] & ret_store_cntr) 
+	   $display("IMPLEMENTATION ERROR: CANNOT BYPASS CROSSBAR FOR REMOTE LOADS (BARRIER ON OUTSTANDING LOADS)");	   
+	   
    bsg_manycore_pkt_encode #(.x_cord_width_p (x_cord_width_p)
                              ,.y_cord_width_p(y_cord_width_p)
                              ,.data_width_p (data_width_p )
@@ -150,12 +197,25 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
       ,.addr_i (core_mem_addr [1])
       ,.we_i   (core_mem_w    [1])
       ,.mask_i (core_mem_mask [1])
-
+	  ,.from_y_cord_i(my_y_i)
+      ,.from_x_cord_i(my_x_i)
+	  ,.ret_store_cntr_o(ret_store_cntr)
       // directly out to the network!
       ,.v_o    (v_o   )
       ,.data_o (data_o)
       );
 
+   // Return packet on successful remote store:
+   // Todo: can we remove ready signal from return network?
+		//when design is finished, load design into formal solver 
+		//and check if ret_ready_i can be fase.
+		//It's possible that the restrictions on the store network 
+		//are sufficient to restrict traffic volume.
+   // For now, we add blocking logic if ret_ready_i is 0.
+   assign ret_v_o = remote_store_yumi;
+   assign ret_data_o = {5'b0,from_y_cord,from_x_cord}; //format packet, all empty except from addr.
+   
+	  
    // synopsys translate off
 
    typedef struct packed {
