@@ -14,9 +14,6 @@ int x_index = 0;
 int y_index = 0;
 int sent[bsg_tiles_X*bsg_tiles_Y];
 int received[bsg_tiles_X*bsg_tiles_Y];
-//int count[bsg_tiles_X*bsg_tiles_Y];
-//int inc = 0;
-int data = 0;
 
 
 
@@ -65,15 +62,13 @@ int square(int c)
 }
 
 //Simple handshake protocol. Only can have 1 outgoing packet to each core
-int send(int x, int y, int * local_addr, int val, int src_x, int src_y) 
+int send(int x, int y, int * local_addr, int val) 
 {
-bsg_print_time();
   bsg_wait_while(bsg_volatile_access(received[x + bsg_tiles_X*y]) != 1);
   received[x + bsg_tiles_X*y] = 0;  
-  int coreIndex = bsg_volatile_access(src_x) + bsg_tiles_X*bsg_volatile_access(src_y);
+  int coreIndex = bsg_volatile_access(bsg_x) + bsg_tiles_X*bsg_volatile_access(bsg_y);
   bsg_remote_store(x, y, local_addr, val);
-  bsg_remote_store(x, y, sent + coreIndex, 1); 
-bsg_print_time();
+  bsg_remote_store(x, y, &sent[coreIndex], 1); 
 }
 
 //Should we specify who to receive from?
@@ -86,9 +81,8 @@ int receive()
     for(int i = 0; i < bsg_tiles_X; i++, x_index = (x_index+1)%bsg_tiles_X) {
       for(int j = 0; j < bsg_tiles_Y; j++, y_index = (y_index+1)%bsg_tiles_Y) {
         if(bsg_volatile_access(sent[x_index+y_index*bsg_tiles_X]) == 1) {
-          bsg_remote_store(x_index, y_index, received[bsg_volatile_access(bsg_x) + bsg_tiles_X*bsg_volatile_access(bsg_y)], 1);
+          bsg_remote_store(x_index, y_index, &received[bsg_volatile_access(bsg_x) + bsg_tiles_X*bsg_volatile_access(bsg_y)], 1);
 	  sent[x_index+y_index*bsg_tiles_X] = 0;
-          bsg_print_time();
  	  return 1;
         }
       }
@@ -96,6 +90,8 @@ int receive()
   }
   return 0;
 }
+
+
 
 
 int main()
@@ -106,21 +102,21 @@ int main()
   bsg_remote_ptr_io_store(0,0x1264,bsg_y);
 
   bsg_remote_ptr_io_store(0,0x1234,0x13);
-/*  
+
+  int data; 
   //Core (1,1) sends to core (0,0)  
   if(bsg_volatile_access(bsg_x) == 1 && bsg_volatile_access(bsg_y) == 1) {
-    send(0, 0, &data, data, bsg_volatile_access(bsg_x), bsg_volatile_access(bsg_y));
+    send(0, 0, &data, data);
   }
 
   //Core (0,0) waits until data is received
   if(bsg_x == 0 && bsg_y == 0) {
     receive();
   }
-  
 
   //Barrier to prevent an early finish from occurring.
   barrier3(bsg_x, bsg_y, barr);
-*/
+
   if ((bsg_x == bsg_tiles_X-1) && (bsg_y == bsg_tiles_Y-1))
     bsg_finish();
 
