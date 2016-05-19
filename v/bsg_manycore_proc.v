@@ -14,6 +14,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
                            // this is the size of the receive FIFO
                            , proc_fifo_els_p = 4
                            , mem_width_lp    = $clog2(bank_size_p) + $clog2(num_banks_p)
+			   , num_tiles_y_p   = -1
                            )
    (input   clk_i
     , input reset_i
@@ -41,6 +42,8 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
     , output logic freeze_o
     );
 
+   `declare_bsg_manycore_packet_s(addr_width_p, data_width_p, x_cord_width_p, y_cord_width_p);
+   
    // pkt from coords
    logic  [x_cord_width_p-1:0] from_x_cord;
    logic  [y_cord_width_p-1:0] from_y_cord;
@@ -48,19 +51,39 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
    //Quick implementation of ourstanding store counter:
    localparam str_cntr_wid_lp = 16;
    assign ret_ready_o = 1'b1;// Always accepts incoming messages.
-   logic out_store_v = v_o; //TODO: ensure signal is only node-to-node remote stores, no peripherals.
+   logic out_store_v;
+   assign out_store_v = v_o & ready_i;// & (send.x_cord != num_tiles_y); //Prevents against incrementing when sending to IO, as we cannot expect a return message.) 
    logic [str_cntr_wid_lp:0] out_stores; //minimum width is ceil(log(num cores * 2 directions * pipeline depth))
    logic ret_store_cntr; //returns the store counter on a remote load.
 
+
+   bsg_manycore_packet_s send, recv;
+   assign send = data_o;
+   assign recv = data_i;
+
+   always@(posedge clk_i) begin
+     if(v_o & ready_i) $display("SENT PKT\t FROM %x, %x, TO %x, %x, ADDR %x, DATA %x, OP %x \t OUT STORES %x", my_x_i, my_y_i, send.x_cord, send.y_cord, send.addr, send.data, send.op, out_stores);
+     if(v_i & ready_o && recv.from_y_cord < 3) $display("\tRECV PKT FROM %x, %x, TO %x, %x, ADDR %x, DATA %x, OP %x", recv.from_x_cord, recv.from_y_cord, my_x_i, my_y_i, recv.addr, recv.data, recv.op);
+   end
+
+   //TODO do not increment counter if sending message outside of array (e.g. y = num_tiles_y).
    always_ff @(posedge clk_i) begin
-       if(~(out_store_v^ret_v_i)) begin //both or neither
-	   out_stores <= out_stores;
-       end else if (out_store_v) begin
-	   out_stores <= out_stores+1;
-       end else if (ret_v_i) begin
+        if (reset_i) begin 
+	   out_stores <= 0;
+    	
+	end else if((out_store_v && (send.y_cord == num_tiles_y_p)) & ret_v_i) begin //both or neither
 	   out_stores <= (out_stores==0) ? 0 : out_stores-1;
-           if(out_stores==0) $display("ERROR: NEGATIVE OUTSTANDING STORE COUNTER AT NODE: x%x y%x",my_x_i,my_y_i);
-       end
+	end else if(~(out_store_v^ret_v_i)) begin //both or neither
+	   out_stores <= out_stores;
+           //if(out_store_v & ret_v_i)$display("OUT STORES INC AND DEC, %x %x (WAS %x)", my_x_i,my_y_i,out_stores);
+	end else if (out_store_v && send.y_cord != num_tiles_y_p) begin //Ensure's that it does not increment if writing to I/O.
+	   out_stores <= out_stores+1;
+           //$display("OUT STORES INC, %x %x (WAS %x)", my_x_i,my_y_i,out_stores);
+	end else if (ret_v_i) begin
+	   out_stores <= (out_stores==0) ? 0 : out_stores-1;
+           //$display("OUT STORES DEC, %x %x (WAS %x)", my_x_i,my_y_i,out_stores);
+	   if(out_stores==0) $display("ERROR: NEGATIVE OUTSTANDING STORE COUNTER AT NODE: x%x y%x",my_x_i,my_y_i);
+	end
    end
 	
    // input fifo from network
@@ -155,10 +178,11 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
    logic [1:0]                         core_mem_rv;
    logic [1:0] [data_width_p-1:0]      core_mem_rdata;
 
-   logic [data_width_p-1:0] muxed_core_mem_rdata = ret_store_cntr ? 
-                                                   { {(data_width_p - str_cntr_wid_lp){1'b0}}, out_stores} : 
-                                                   core_mem_rdata[1];
+   logic [data_width_p-1:0] muxed_core_mem_rdata;
+   assign muxed_core_mem_rdata = ret_store_cntr ? out_stores : core_mem_rdata[1];
    logic core_mem_reservation_r;
+
+   always@(posedge clk_i) if(ret_store_cntr) $display("Loading store counter at %x %x, stores: %x",my_x_i,my_y_i,muxed_core_mem_rdata);
 
    logic [addr_width_p-1:0]      core_mem_reserve_addr_r;
 
@@ -208,13 +232,13 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
 	   //At the same time as yumi. Based on my understanding of the vscale core,
 	   //the remote load cannot be waiting on any other loads, so it's safe to bypass
 	   //the mem_banked_crossbar. If this is not the case, we will see it in sim.
-       //,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1] | ret_store_cntr
-       ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1]
+       ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1] | ret_store_cntr
+       //,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1]
                        , core_mem_yumi[0]})
-       //,.m_v_i       ({core_mem_rv[1] | ret_store_cntr, core_mem_rv[0]})
-       ,.m_v_i       (core_mem_rv)
-       //,.m_data_i    ( {muxed_core_mem_rdata, core_mem_rdata[0]} )
-       ,.m_data_i    ( core_mem_rdata)
+       ,.m_v_i       ({core_mem_rv[1] | ret_store_cntr, core_mem_rv[0]})
+       //,.m_v_i       (core_mem_rv)
+       ,.m_data_i    ( {muxed_core_mem_rdata, core_mem_rdata[0]} )
+       //,.m_data_i    ( core_mem_rdata)
        ,.my_x_i (my_x_i)
        ,.my_y_i (my_y_i)
        );
@@ -250,14 +274,13 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
 		//It's possible that the restrictions on the store network 
 		//are sufficient to restrict traffic volume.
    // For now, we add blocking logic if ret_ready_i is 0.
-   assign ret_v_o = remote_store_yumi && (my_x_i != from_x_cord || my_y_i != from_y_cord); //don't create a return packet if from cord = to cord (e.g. during software load, where we duplicate from/to coords in packets). 
+   assign ret_v_o = remote_store_yumi; //THIS IS OK NOW - I/O JUST SINKS RET PACKETS // && (my_x_i != from_x_cord || my_y_i != from_y_cord); //don't create a return packet if from cord = to cord (e.g. during software load, where we duplicate from/to coords in packets). 
 
    assign ret_data_o = {5'b0,from_y_cord,from_x_cord}; //format packet, all empty except from addr.
    
 	  
    // synopsys translate off
 
-   `declare_bsg_manycore_packet_s(addr_width_p, data_width_p, x_cord_width_p, y_cord_width_p);
 
    bsg_manycore_packet_s data_o_debug;
    assign data_o_debug = data_o;

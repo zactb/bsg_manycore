@@ -99,21 +99,25 @@ import bsg_vscale_pkg::*
         ,.data_width_p (data_width_p)
         ,.addr_width_p (addr_width_p)
         ,.debug_p      (debug_p)
+	,.num_tiles_y_p (num_tiles_y_p)
        ) tile
        ( .clk_i (clk_i)
         ,.reset_i(reset_i)
 
         ,.data_i ({ (r == num_tiles_y_p-1)
-                       ? {ver_data_i[S][c], ver_data_i[S][c][x_cord_width_lp+y_cord_width_lp-1:0]}
+                       ? {ver_data_i[S][c][orig_packet_width_lp-1:x_cord_width_lp+y_cord_width_lp],{(x_cord_width_lp+y_cord_width_lp){1'b1}} ,ver_data_i[S][c][x_cord_width_lp+y_cord_width_lp-1:0]}
                        : data_out[r+1][c][N] // s
                      ,(r == 0)
-                       ? {ver_data_i[N][c], ver_data_i[N][c][x_cord_width_lp+y_cord_width_lp-1:0]}
+                       //? {ver_data_i[N][c], ver_data_i[N][c][x_cord_width_lp+y_cord_width_lp-1:0]}
+                       ? {ver_data_i[N][c][orig_packet_width_lp-1:x_cord_width_lp+y_cord_width_lp],{(x_cord_width_lp+y_cord_width_lp){1'b1}} ,ver_data_i[N][c][x_cord_width_lp+y_cord_width_lp-1:0]}
                        : data_out[r-1][c][S] // n
                      ,(c == num_tiles_x_p-1)
-                       ? {hor_data_i[E][r], hor_data_i[E][r][x_cord_width_lp+y_cord_width_lp-1:0]}
+                       //? {hor_data_i[E][r], hor_data_i[E][r][x_cord_width_lp+y_cord_width_lp-1:0]}
+                       ? {hor_data_i[E][r][orig_packet_width_lp-1:x_cord_width_lp+y_cord_width_lp],{(x_cord_width_lp+y_cord_width_lp){1'b1}} ,hor_data_i[E][r][x_cord_width_lp+y_cord_width_lp-1:0]}
                        : data_out[r][c+1][W] // e
                      ,(c == 0)
-                       ? {hor_data_i[W][r], hor_data_i[W][r][x_cord_width_lp+y_cord_width_lp-1:0]}
+                       //? {hor_data_i[W][r], hor_data_i[W][r][x_cord_width_lp+y_cord_width_lp-1:0]}
+                       ? {hor_data_i[W][r][orig_packet_width_lp-1:x_cord_width_lp+y_cord_width_lp],{(x_cord_width_lp+y_cord_width_lp){1'b1}} ,hor_data_i[W][r][x_cord_width_lp+y_cord_width_lp-1:0]}
                        : data_out[r][c-1][E] // w
                     }
                    )
@@ -187,16 +191,16 @@ import bsg_vscale_pkg::*
         ,.ret_v_o  (ret_v_out[r][c])
         ,.ret_ready_i   (
                     { (r == num_tiles_y_p-1)
-                       ? 1'b0
+                       ? 1'b1
                        : ret_ready_out[r+1][c][N] // s
                      ,(r == 0)
-                       ? 1'b0
+                       ? 1'b1
                        : ret_ready_out[r-1][c][S] // n
                      ,(c == num_tiles_x_p-1)
-                       ? 1'b0
+                       ? 1'b1
                        : ret_ready_out[r][c+1][W] // e
                      ,(c == 0)
-                       ? 1'b0
+                       ? 1'b1
                        : ret_ready_out[r][c-1][E] // w
                     }
                    )
