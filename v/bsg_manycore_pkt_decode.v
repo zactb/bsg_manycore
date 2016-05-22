@@ -35,8 +35,8 @@ module bsg_manycore_pkt_decode #(
    assign pkt = data_i;
    assign data_o = pkt.data;
    assign addr_o = pkt.addr;
-   assign from_y_cord_o = pkt.from_y_cord
-   assign from_x_cord_o = pkt.from_x_cord
+   assign from_y_cord_o = pkt.from_y_cord;
+   assign from_x_cord_o = pkt.from_x_cord;
 
    always_comb
      begin

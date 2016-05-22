@@ -16,7 +16,7 @@ import bsg_vscale_pkg::*
    ,parameter packet_width_lp   = 6 + x_cord_width_p + y_cord_width_p
                                     + x_cord_width_p + y_cord_width_p
                                     + addr_width_p + data_width_p
-   ,parameter ret_pack_width_lp = 1 + x_cord_width_p + y_cord_width_p + 1 + 1 + 1 + 1
+   ,parameter ret_packet_width_lp = 1 + x_cord_width_p + y_cord_width_p + 1 + 1 + 1 + 1
    ,parameter debug_p = 0
   )
   ( input                                       clk_i

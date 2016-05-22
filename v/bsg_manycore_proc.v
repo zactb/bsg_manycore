@@ -55,7 +55,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
      if(~(out_store_v^ret_v_i)) begin //both or neither
 	   out_stores <= out_stores;
 	 end else if (out_store_v) begin
-	   out_stores <= outstanding+stores+1;
+	   out_stores <= out_stores+1;
 	 end else if (ret_v_i) begin
 	   out_stores <= (out_stores==0) ? 0 : out_stores-1;
 	   if(out_stores==0) $display("ERROR: NEGATIVE OUTSTANDING STORE COUNTER AT NODE: x%x y%x",my_x_i,my_y_i);
@@ -151,6 +151,10 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
    logic [1:0]                         core_mem_rv;
    logic [1:0] [data_width_p-1:0]      core_mem_rdata;
 
+   logic [data_width_p-1:0] muxed_core_mem_rdata = ret_store_cntr ? 
+                                                   { {(data_width_p - str_cntr_wid_lp){1'b0}}, out_stores} : 
+                                                   core_mem_rdata[1];
+
    bsg_vscale_core #(.x_cord_width_p (x_cord_width_p)
                      ,.y_cord_width_p(y_cord_width_p)
                      )
@@ -174,9 +178,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
        ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1] | ret_store_cntr
                        , core_mem_yumi[0]})
        ,.m_v_i       ({core_mem_rv[1] | ret_store_cntr, core_mem_rv[0]})
-       ,.m_data_i    ({ret_store_cntr 
-						? {[(data_width_p-str_cntr_wid_lp)-1:0]'b0,out_stores} 
-						: core_mem_rdata[1], core_mem_rdata[0]})
+       ,.m_data_i    ( {muxed_core_mem_rdata, core_mem_rdata[0]} )
        ,.my_x_i (my_x_i)
        ,.my_y_i (my_y_i)
        );

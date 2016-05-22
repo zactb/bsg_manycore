@@ -12,11 +12,11 @@ module bsg_manycore_pkt_encode #(
     ,input [addr_width_p-1:0] addr_i
     ,input [data_width_p-1:0] data_i 
     ,input [(data_width_p>>3)-1:0] mask_i
-    ,input [y_cord_width_p-1:0] from_y_cord_i;
-    ,input [x_cord_width_p-1:0] from_x_cord_i;
+    ,input [y_cord_width_p-1:0] from_y_cord_i
+    ,input [x_cord_width_p-1:0] from_x_cord_i
     ,input we_i
     ,output v_o
-	,output ret_store_cntr_o
+    ,output ret_store_cntr_o
     ,output [packet_width_lp-1:0] data_o
     );
    
