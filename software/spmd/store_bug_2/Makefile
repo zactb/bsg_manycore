@@ -2,7 +2,7 @@
 bsg_tiles_X = 2
 bsg_tiles_Y = 2
 
-OBJECT_FILES = hello.o bsg_set_tile_x_y.o
+OBJECT_FILES = hello.o 
 
 include ../Makefile.include
 

@@ -1,3 +1,5 @@
+`include "bsg_manycore_packet.vh"
+
 module bsg_manycore_tile
 
 import bsg_vscale_pkg::*
@@ -8,15 +10,16 @@ import bsg_vscale_pkg::*
    ,parameter x_cord_width_p       = 5
    ,parameter y_cord_width_p       = 5 
 
-   ,parameter bank_size_p       = -1
-   ,parameter num_banks_p       = -1
+   ,parameter bank_size_p       = "inv"
+   ,parameter num_banks_p       = "inv"
    ,parameter data_width_p      = hdata_width_p
    ,parameter addr_width_p      = haddr_width_p
    ,parameter mem_addr_width_lp = $clog2(num_banks_p) + `BSG_SAFE_CLOG2(bank_size_p)
-   ,parameter packet_width_lp   = 6 + x_cord_width_p + y_cord_width_p
                                     + x_cord_width_p + y_cord_width_p
                                     + addr_width_p + data_width_p
-   ,parameter ret_packet_width_lp = 1 + x_cord_width_p + y_cord_width_p + 1 + 1 + 1 + 1
+   ,parameter ret_packet_width_lp = `bsg_manycore_packet_width(1,1,x_cord_width_p,y_cord_width_p)
+    ,parameter packet_width_lp   = `bsg_manycore_packet_width(addr_width_p,data_width_p,x_cord_width_p,y_cord_width_p)
+
    ,parameter debug_p = 0
   )
   ( input                                       clk_i

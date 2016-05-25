@@ -1,3 +1,5 @@
+`include "bsg_manycore_packet.vh"
+
 module bsg_manycore
 
 import bsg_vscale_pkg::*
@@ -7,21 +9,23 @@ import bsg_vscale_pkg::*
     parameter dirs_p            = 4
    ,parameter fifo_els_p        = 2
    ,parameter bank_size_p       = "inv"
-   ,parameter num_banks_p       = 4
+
+   // increasing the number of banks decreases ram efficiency
+   // but reduces conflicts between remote stores and local data accesses
+   // If there are too many conflicts, than traffic starts backing up into
+   // the network (i.e. cgni full cycles).
+
+   ,parameter num_banks_p       = "inv"
    ,parameter data_width_p      = hdata_width_p
    ,parameter addr_width_p      = haddr_width_p
 
    // array params
    ,parameter num_tiles_x_p     = "inv"
    ,parameter num_tiles_y_p     = "inv"
-   ,parameter x_cord_width_lp    = `BSG_SAFE_CLOG2(num_tiles_x_p)
-   ,parameter y_cord_width_lp    = `BSG_SAFE_CLOG2(num_tiles_y_p + 1)
-   ,parameter packet_width_lp   = 6 + x_cord_width_lp + y_cord_width_lp 
-                                    + x_cord_width_lp + y_cord_width_lp
-                                    + addr_width_p + data_width_p
-   ,parameter orig_packet_width_lp = 6 + x_cord_width_lp + y_cord_width_lp 
-				    + addr_width_p + data_width_p
-   ,parameter ret_packet_width_lp = 5 + x_cord_width_lp + y_cord_width_lp
+   ,parameter x_cord_width_lp   = `BSG_SAFE_CLOG2(num_tiles_x_p)
+   ,parameter y_cord_width_lp   = `BSG_SAFE_CLOG2(num_tiles_y_p + 1)
+   ,parameter packet_width_lp   = `bsg_manycore_packet_width(addr_width_p,data_width_p,x_cord_width_lp,y_cord_width_lp)
+   ,parameter packet_width_lp   = `bsg_manycore_packet_width(1,1,x_cord_width_lp,y_cord_width_lp)
 
    // array i/o params
    ,parameter stub_w_p          = {num_tiles_y_p{1'b0}}
@@ -207,21 +211,29 @@ import bsg_vscale_pkg::*
 
   for(r = 0; r < num_tiles_y_p; r = r+1)
   begin: hor_outputs
+<<<<<<< HEAD
     assign {hor_data_o[E][r], hor_data_o[W][r]} = 
 	{{data_out[r][num_tiles_x_p-1][E][packet_width_lp-1:(y_cord_width_lp*4)], data_out[r][num_tiles_x_p-1][E][(y_cord_width_lp*2)-1:0]}, {data_out[r][0][W][packet_width_lp-1:(y_cord_width_lp*4)], data_out[r][0][W][(y_cord_width_lp*2)-1:0]}};
     //assign {hor_data_o[E][r], hor_data_o[W][r]} = {data_out[r][num_tiles_x_p-1][E], data_out[r][0][W]};
     assign {hor_v_o [E][r], hor_v_o [W][r]} = {v_out [r][num_tiles_x_p-1][E], v_out [r][0][W]};
     assign {hor_ready_o [E][r], hor_ready_o [W][r]} = {ready_out [r][num_tiles_x_p-1][E], ready_out [r][0][W]};
+=======
+    assign {hor_data_o [E][r], hor_data_o [W][r]} = {data_out [r][num_tiles_x_p-1][E], data_out [r][0][W]};
+    assign {hor_v_o    [E][r], hor_v_o    [W][r]} = {v_out    [r][num_tiles_x_p-1][E], v_out    [r][0][W]};
+    assign {hor_ready_o[E][r], hor_ready_o[W][r]} = {ready_out[r][num_tiles_x_p-1][E], ready_out[r][0][W]};
+>>>>>>> origin
   end
 
 
   for(c = 0; c < num_tiles_x_p; c = c+1)
   begin: ver_outputs
+<<<<<<< HEAD
     assign {ver_data_o[S][c], ver_data_o[N][c]} = {{data_out[num_tiles_y_p-1][c][S][packet_width_lp-1:(y_cord_width_lp*4)], data_out[num_tiles_y_p-1][c][S][(y_cord_width_lp*2)-1:0]}, {data_out[0][c][N][packet_width_lp-1:(y_cord_width_lp*4)], data_out[0][c][N][(y_cord_width_lp*2)-1:0]}};
-    //assign {ver_data_o[S][c], ver_data_o[N][c]} = {data_out[num_tiles_y_p-1][c][S], data_out[0][c][N]};
-    //assign {ver_data_o[S][c], ver_data_o[N][c]} = {data_out[num_tiles_y_p-1][c][S][packet_width_lp-1-:orig_packet_width_lp], data_out[0][c][N][packet_width_lp-1-:orig_packet_width_lp]};
-    assign {ver_v_o [S][c], ver_v_o [N][c]} = {v_out [num_tiles_y_p-1][c][S], v_out [0][c][N]};
-    assign {ver_ready_o [S][c], ver_ready_o [N][c]} = {ready_out [num_tiles_y_p-1][c][S], ready_out [0][c][N]};
+=======
+    assign {ver_data_o [S][c], ver_data_o [N][c]} = {data_out [num_tiles_y_p-1][c][S], data_out [0][c][N]};
+    assign {ver_v_o    [S][c], ver_v_o    [N][c]} = {v_out    [num_tiles_y_p-1][c][S], v_out    [0][c][N]};
+    assign {ver_ready_o[S][c], ver_ready_o[N][c]} = {ready_out[num_tiles_y_p-1][c][S], ready_out[0][c][N]};
+>>>>>>> origin
   end
 
    
