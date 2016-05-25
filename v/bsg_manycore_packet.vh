@@ -7,9 +7,9 @@
       logic [(in_data_width>>3)-1:0] op_ex;   \
       logic [(in_addr_width)-1:0] addr;       \
       logic [(in_data_width)-1:0] data;       \
-      logic [(in_y_cord_width)-1:0] ret_y_cord;   \
-      logic [(in_y_cord_width)-1:0] ret_y_cord;   \
+      logic [(in_x_cord_width)-1:0] from_x_cord;   \
+      logic [(in_y_cord_width)-1:0] from_y_cord;   \
       logic [(in_x_cord_width)-1:0] x_cord;   \
-      logic [(in_x_cord_width)-1:0] x_cord;   \
+      logic [(in_y_cord_width)-1:0] y_cord;   \
    } bsg_manycore_packet_s
 
