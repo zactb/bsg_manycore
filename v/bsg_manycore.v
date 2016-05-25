@@ -59,7 +59,7 @@ import bsg_vscale_pkg::*
   end
   // synopsys translate on
 
-
+ 
 
   /* TILES */
 
@@ -98,16 +98,16 @@ import bsg_vscale_pkg::*
         ,.reset_i(reset_i)
 
         ,.data_i ({ (r == num_tiles_y_p-1)
-                       ? {ver_data_i[S][c], {x_cord_width_lp+y_cord_width_lp{1'b0}}}
+                       ? {ver_data_i[S][c], ver_data_i[S][c][x_cord_width_lp+y_cord_width_lp-1:0]}
                        : data_out[r+1][c][N] // s
                      ,(r == 0)
-                       ? {ver_data_i[N][c], {x_cord_width_lp+y_cord_width_lp{1'b0}}}
+                       ? {ver_data_i[N][c], ver_data_i[N][c][x_cord_width_lp+y_cord_width_lp-1:0]}
                        : data_out[r-1][c][S] // n
                      ,(c == num_tiles_x_p-1)
-                       ? {hor_data_i[E][r], {x_cord_width_lp+y_cord_width_lp{1'b0}}}
+                       ? {hor_data_i[E][r], hor_data_i[E][r][x_cord_width_lp+y_cord_width_lp-1:0]}
                        : data_out[r][c+1][W] // e
                      ,(c == 0)
-                       ? {hor_data_i[W][r], {x_cord_width_lp+y_cord_width_lp{1'b0}}}
+                       ? {hor_data_i[W][r], hor_data_i[W][r][x_cord_width_lp+y_cord_width_lp-1:0]}
                        : data_out[r][c-1][E] // w
                     }
                    )
@@ -201,13 +201,14 @@ import bsg_vscale_pkg::*
     end
   end
 
-
+   
 
   /* OUTPUTS */
 
   for(r = 0; r < num_tiles_y_p; r = r+1)
   begin: hor_outputs
-    assign {hor_data_o[E][r], hor_data_o[W][r]} = {data_out[r][num_tiles_x_p-1][E][packet_width_lp-1-:orig_packet_width_lp], data_out[r][0][W][packet_width_lp-1-:orig_packet_width_lp]};
+    assign {hor_data_o[E][r], hor_data_o[W][r]} = 
+	{{data_out[r][num_tiles_x_p-1][E][packet_width_lp-1:(y_cord_width_lp*4)], data_out[r][num_tiles_x_p-1][E][(y_cord_width_lp*2)-1:0]}, {data_out[r][0][W][packet_width_lp-1:(y_cord_width_lp*4)], data_out[r][0][W][(y_cord_width_lp*2)-1:0]}};
     //assign {hor_data_o[E][r], hor_data_o[W][r]} = {data_out[r][num_tiles_x_p-1][E], data_out[r][0][W]};
     assign {hor_v_o [E][r], hor_v_o [W][r]} = {v_out [r][num_tiles_x_p-1][E], v_out [r][0][W]};
     assign {hor_ready_o [E][r], hor_ready_o [W][r]} = {ready_out [r][num_tiles_x_p-1][E], ready_out [r][0][W]};
@@ -216,8 +217,9 @@ import bsg_vscale_pkg::*
 
   for(c = 0; c < num_tiles_x_p; c = c+1)
   begin: ver_outputs
-    assign {ver_data_o[S][c], ver_data_o[N][c]} = {data_out[num_tiles_y_p-1][c][S][packet_width_lp-1-:orig_packet_width_lp], data_out[0][c][N][packet_width_lp-1-:orig_packet_width_lp]};
+    assign {ver_data_o[S][c], ver_data_o[N][c]} = {{data_out[num_tiles_y_p-1][c][S][packet_width_lp-1:(y_cord_width_lp*4)], data_out[num_tiles_y_p-1][c][S][(y_cord_width_lp*2)-1:0]}, {data_out[0][c][N][packet_width_lp-1:(y_cord_width_lp*4)], data_out[0][c][N][(y_cord_width_lp*2)-1:0]}};
     //assign {ver_data_o[S][c], ver_data_o[N][c]} = {data_out[num_tiles_y_p-1][c][S], data_out[0][c][N]};
+    //assign {ver_data_o[S][c], ver_data_o[N][c]} = {data_out[num_tiles_y_p-1][c][S][packet_width_lp-1-:orig_packet_width_lp], data_out[0][c][N][packet_width_lp-1-:orig_packet_width_lp]};
     assign {ver_v_o [S][c], ver_v_o [N][c]} = {v_out [num_tiles_y_p-1][c][S], v_out [0][c][N]};
     assign {ver_ready_o [S][c], ver_ready_o [N][c]} = {ready_out [num_tiles_y_p-1][c][S], ready_out [0][c][N]};
   end

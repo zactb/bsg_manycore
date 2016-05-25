@@ -3,7 +3,8 @@ module bsg_manycore_pkt_decode #(
                                  , y_cord_width_p = "inv"
                                  , data_width_p   = "inv"
                                  , addr_width_p   = "inv"
-                                 , packet_width_lp = 6+x_cord_width_p+y_cord_width_p+data_width_p+addr_width_p
+                                 , packet_width_lp = 6+x_cord_width_p+y_cord_width_p+data_width_p+addr_width_p+
+					x_cord_width_p+y_cord_width_p
                                  )
    (
     input   v_i
@@ -47,11 +48,14 @@ module bsg_manycore_pkt_decode #(
 
         if (v_i)
           unique case (pkt.op)
-            6'd2: if (~|pkt.addr[addr_width_p-1:0])
+	    //If opcode is 2 and the address is valid
+            6'd2: begin
+	      if (~|pkt.addr[addr_width_p-1:0])
               begin
                  pkt_freeze_o   = pkt.data[0];
                  pkt_unfreeze_o = ~pkt.data[0];
               end
+	    end
             6'd1:
 		pkt_remote_store_o = 1'b1;
             default:
