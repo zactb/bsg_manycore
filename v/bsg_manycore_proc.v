@@ -175,8 +175,11 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
    logic [1:0]                         core_mem_rv;
    logic [1:0] [data_width_p-1:0]      core_mem_rdata;
 
-   logic [data_width_p-1:0] muxed_core_mem_rdata = ret_store_cntr ? out_stores : core_mem_rdata[1];
+   logic [data_width_p-1:0] muxed_core_mem_rdata;
+   assign muxed_core_mem_rdata = ret_store_cntr ? out_stores : core_mem_rdata[1];
    logic core_mem_reservation_r;
+
+   always@(posedge clk_i) if(ret_store_cntr) $display("Loading store counter at %x %x, stores: %x",my_x_i,my_y_i,muxed_core_mem_rdata);
 
    logic [addr_width_p-1:0]      core_mem_reserve_addr_r;
 
@@ -226,13 +229,13 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
 	   //At the same time as yumi. Based on my understanding of the vscale core,
 	   //the remote load cannot be waiting on any other loads, so it's safe to bypass
 	   //the mem_banked_crossbar. If this is not the case, we will see it in sim.
-       //,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1] | ret_store_cntr
-       ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1]
+       ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1] | ret_store_cntr
+       //,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1]
                        , core_mem_yumi[0]})
-       //,.m_v_i       ({core_mem_rv[1] | ret_store_cntr, core_mem_rv[0]})
-       ,.m_v_i       (core_mem_rv)
-       //,.m_data_i    ( {muxed_core_mem_rdata, core_mem_rdata[0]} )
-       ,.m_data_i    ( core_mem_rdata)
+       ,.m_v_i       ({core_mem_rv[1] | ret_store_cntr, core_mem_rv[0]})
+       //,.m_v_i       (core_mem_rv)
+       ,.m_data_i    ( {muxed_core_mem_rdata, core_mem_rdata[0]} )
+       //,.m_data_i    ( core_mem_rdata)
        ,.my_x_i (my_x_i)
        ,.my_y_i (my_y_i)
        );

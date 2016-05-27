@@ -17,8 +17,7 @@ int received[bsg_tiles_X*bsg_tiles_Y];
 //int count[bsg_tiles_X*bsg_tiles_Y];
 //int inc = 0;
 int data = 0;
-
-
+int data2 = 0;
 
 int bsg_set_tile_x_y()
 {
@@ -100,6 +99,9 @@ int receive()
 
 int main()
 {
+  int i=0,x=1;
+  volatile int * xp = (volatile int *) (1<<31);
+
   bsg_set_tile_x_y();
 
   bsg_remote_ptr_io_store(0,0x1260,bsg_x);
@@ -121,8 +123,21 @@ int main()
   //Barrier to prevent an early finish from occurring.
   barrier3(bsg_x, bsg_y, barr);
 */
-  if ((bsg_x == bsg_tiles_X-1) && (bsg_y == bsg_tiles_Y-1))
+  if ((bsg_x == 0) && (bsg_y == 0)){
+    bsg_remote_store(1,1,&data2,64);
+    bsg_remote_store(1,1,&data2,128);
+    bsg_remote_store(1,1,&data2,192);
+    bsg_remote_store(1,1,&data2,256);
+    bsg_remote_store(1,1,&data2,320);
+    while(x>0) {
+      do { x = *xp; } while (0);
+      bsg_remote_store(0,1,&data2,x);
+    } 
     bsg_finish();
+  }
+  else {
+    while(1) bsg_remote_store(1,1,&data2,i++);
+  }
 
   bsg_wait_while(1);
 }
