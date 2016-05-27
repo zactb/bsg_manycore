@@ -43,8 +43,8 @@ module bsg_manycore_pkt_encode
    assign pkt.data   = data_i;
    assign pkt.x_cord = addr_decode.x_cord;
    assign pkt.y_cord = addr_decode.y_cord;
-   assign pkt.from_x_cord = from_y_cord_i;
-   assign pkt.from_y_cord = from_x_cord_i;
+   assign pkt.from_y_cord = from_y_cord_i;
+   assign pkt.from_x_cord = from_x_cord_i;
 
    assign v_o = addr_decode.remote & we_i & v_i;
    assign ret_store_cntr_o = addr_decode.remote & ~we_i & v_i;
