@@ -52,7 +52,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
    localparam str_cntr_wid_lp = 16;
    assign ret_ready_o = 1'b1;// Always accepts incoming messages.
    logic out_store_v;
-   assign out_store_v = v_o & ready_i;// & (send.x_cord != num_tiles_y); //Prevents against incrementing when sending to IO, as we cannot expect a return message.) 
+   assign out_store_v = v_o & ready_i & (send.y_cord != num_tiles_y_p); //Prevents against incrementing when sending to IO, as we cannot expect a return message.) 
    logic [str_cntr_wid_lp:0] out_stores; //minimum width is ceil(log(num cores * 2 directions * pipeline depth))
    logic ret_store_cntr; //returns the store counter on a remote load.
 
@@ -63,20 +63,17 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
 
    always@(posedge clk_i) begin
      if(v_o & ready_i) $display("SENT PKT\t FROM %x, %x, TO %x, %x, ADDR %x, DATA %x, OP %x \t OUT STORES %x", my_x_i, my_y_i, send.x_cord, send.y_cord, send.addr, send.data, send.op, out_stores);
-     if(v_i & ready_o && recv.from_y_cord < 3) $display("\tRECV PKT FROM %x, %x, TO %x, %x, ADDR %x, DATA %x, OP %x", recv.from_x_cord, recv.from_y_cord, my_x_i, my_y_i, recv.addr, recv.data, recv.op);
+     if(v_i & ready_o && recv.from_y_cord < num_tiles_y_p) $display("\tRECV PKT FROM %x, %x, TO %x, %x, ADDR %x, DATA %x, OP %x", recv.from_x_cord, recv.from_y_cord, my_x_i, my_y_i, recv.addr, recv.data, recv.op);
    end
 
    //TODO do not increment counter if sending message outside of array (e.g. y = num_tiles_y).
    always_ff @(posedge clk_i) begin
         if (reset_i) begin 
 	   out_stores <= 0;
-    	
-	end else if((out_store_v && (send.y_cord == num_tiles_y_p)) & ret_v_i) begin //both or neither
-	   out_stores <= (out_stores==0) ? 0 : out_stores-1;
 	end else if(~(out_store_v^ret_v_i)) begin //both or neither
 	   out_stores <= out_stores;
            //if(out_store_v & ret_v_i)$display("OUT STORES INC AND DEC, %x %x (WAS %x)", my_x_i,my_y_i,out_stores);
-	end else if (out_store_v && send.y_cord != num_tiles_y_p) begin //Ensure's that it does not increment if writing to I/O.
+	end else if (out_store_v) begin //Ensure's that it does not increment if writing to I/O.
 	   out_stores <= out_stores+1;
            //$display("OUT STORES INC, %x %x (WAS %x)", my_x_i,my_y_i,out_stores);
 	end else if (ret_v_i) begin
