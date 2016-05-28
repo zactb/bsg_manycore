@@ -132,8 +132,9 @@ int main()
     //Busy wait until outgoing signals decreases to 0
     while(x>0) {
       do { x = *xp; } while (0);
-      bsg_remote_store(0,1,&data2,x);
+      if(i++ == 0)bsg_remote_store(0,1,&data2,x);
     }
+    bsg_remote_store(0,1,&data2,i);
     bsg_finish();
   }
   //Have all other cores just generate traffic

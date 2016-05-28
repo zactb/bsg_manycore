@@ -175,11 +175,14 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
    logic [1:0]                         core_mem_rv;
    logic [1:0] [data_width_p-1:0]      core_mem_rdata;
 
+   logic ret_store_cntr_p;
    logic [data_width_p-1:0] muxed_core_mem_rdata;
-   assign muxed_core_mem_rdata = ret_store_cntr ? out_stores : core_mem_rdata[1];
+   assign muxed_core_mem_rdata = ret_store_cntr_p ? out_stores : core_mem_rdata[1];
    logic core_mem_reservation_r;
 
-   always@(posedge clk_i) if(ret_store_cntr) $display("Loading store counter at %x %x, stores: %x",my_x_i,my_y_i,muxed_core_mem_rdata);
+   always@(posedge clk_i) ret_store_cntr_p <= ret_store_cntr;   
+
+   always@(posedge clk_i) if(ret_store_cntr_p) $display("Loading store counter at %x %x, stores: %x",my_x_i,my_y_i,muxed_core_mem_rdata);
 
    logic [addr_width_p-1:0]      core_mem_reserve_addr_r;
 
@@ -232,7 +235,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
        ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1] | ret_store_cntr
        //,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1]
                        , core_mem_yumi[0]})
-       ,.m_v_i       ({core_mem_rv[1] | ret_store_cntr, core_mem_rv[0]})
+       ,.m_v_i       ({core_mem_rv[1] | ret_store_cntr_p, core_mem_rv[0]})
        //,.m_v_i       (core_mem_rv)
        ,.m_data_i    ( {muxed_core_mem_rdata, core_mem_rdata[0]} )
        //,.m_data_i    ( core_mem_rdata)
