@@ -31,8 +31,8 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
     , input [ret_packet_width_lp-1:0] ret_data_i
     , output ret_ready_o
 
-    , output ret_v_o
-    , output [ret_packet_width_lp-1:0] ret_data_o
+    , output logic ret_v_o
+    , output logic [ret_packet_width_lp-1:0] ret_data_o
     , input ret_ready_i
 
     // tile coordinates 
@@ -44,6 +44,11 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
 
    `declare_bsg_manycore_packet_s(addr_width_p, data_width_p, x_cord_width_p, y_cord_width_p);
    
+
+  /***********************************
+  **  Return Network Augmentations  **
+  ***********************************/
+   
    // pkt from coords
    logic  [x_cord_width_p-1:0] from_x_cord;
    logic  [y_cord_width_p-1:0] from_y_cord;
@@ -51,11 +56,17 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
    //Quick implementation of ourstanding store counter:
    localparam str_cntr_wid_lp = 16;
    assign ret_ready_o = 1'b1;// Always accepts incoming messages.
+
+   //TODO: don't increment store counter on a lock request.
+   //don't dec store counter on a return message.
+   
+   logic req_lock, req_lock_stat, rel_lock_rem; //TODO use
+   logic [1:0] rel_lock_num;
    logic out_store_v;
    assign out_store_v = v_o & ready_i & (send.y_cord != num_tiles_y_p); //Prevents against incrementing when sending to IO, as we cannot expect a return message.) 
+
    logic [str_cntr_wid_lp:0] out_stores; //minimum width is ceil(log(num cores * 2 directions * pipeline depth))
    logic ret_store_cntr; //returns the store counter on a remote load.
-
 
    bsg_manycore_packet_s send, recv;
    assign send = data_o;
@@ -66,26 +77,118 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
      if(v_i & ready_o && recv.from_y_cord < num_tiles_y_p) $display("\tRECV PKT FROM %x, %x, TO %x, %x, ADDR %x, DATA %x, OP %x", recv.from_x_cord, recv.from_y_cord, my_x_i, my_y_i, recv.addr, recv.data, recv.op);
    end
 
-   //TODO do not increment counter if sending message outside of array (e.g. y = num_tiles_y).
-   always_ff @(posedge clk_i) begin
-        if (reset_i) begin 
-	   out_stores <= 0;
-	end else if(~(out_store_v^ret_v_i)) begin //both or neither
-	   out_stores <= out_stores;
-           //if(out_store_v & ret_v_i)$display("OUT STORES INC AND DEC, %x %x (WAS %x)", my_x_i,my_y_i,out_stores);
-	end else if (out_store_v) begin //Ensure's that it does not increment if writing to I/O.
-	   out_stores <= out_stores+1;
-           //$display("OUT STORES INC, %x %x (WAS %x)", my_x_i,my_y_i,out_stores);
-	end else if (ret_v_i) begin
-	   out_stores <= (out_stores==0) ? 0 : out_stores-1;
-           //$display("OUT STORES DEC, %x %x (WAS %x)", my_x_i,my_y_i,out_stores);
-	   if(out_stores==0) $display("ERROR: NEGATIVE OUTSTANDING STORE COUNTER AT NODE: x%x y%x",my_x_i,my_y_i);
-	end
-   end
-	
+  logic store_counter_dec;
+  assign store_counter_dec = ret_v_i & ~ret_data_i[ret_packet_width_lp-2]; //2nd to last bit off => reply to pkt from network (lock req or store)
+  always_ff @(posedge clk_i) begin
+     if (reset_i) begin 
+       out_stores <= 0;
+     end else if(~(out_store_v^store_counter_dec)) begin //both or neither
+       out_stores <= out_stores; 
+       //if(out_store_v & ret_v_i)$display("OUT STORES INC AND DEC, %x %x (WAS %x)", my_x_i,my_y_i,out_stores);
+     end else if (out_store_v) begin //Ensure's that it does not increment if writing to I/O.
+       out_stores <= out_stores+1;
+     //$display("OUT STORES INC, %x %x (WAS %x)", my_x_i,my_y_i,out_stores);
+     end else if (store_counter_dec) begin
+       out_stores <= (out_stores==0) ? 0 : out_stores-1;
+       //$display("OUT STORES DEC, %x %x (WAS %x)", my_x_i,my_y_i,out_stores);
+       if(out_stores==0) $display("ERROR: NEGATIVE OUTSTANDING STORE COUNTER AT NODE: x%x y%x",my_x_i,my_y_i);
+    end
+  end  
+  
+  logic [data_width_p-1:0] lock_stat;
+  logic ret_net_v, req_lock_stat_prev;
+  logic [data_width_p-1:0] muxed_core_mem_rdata;
+  logic [1:0] [data_width_p-1:0]      core_mem_rdata;
+  assign muxed_core_mem_rdata = ret_net_v ? 
+                                (req_lock_stat_prev ? lock_stat : out_stores)
+                                : core_mem_rdata[1];
+
+  always@(posedge clk_i) 
+  begin 
+    ret_net_v <= ret_store_cntr | req_lock_stat | rel_lock_rem;   
+    req_lock_stat_prev <= req_lock_stat;
+    if(ret_net_v) $display("Loading store counter at %x %x, stores: %x",my_x_i,my_y_i,muxed_core_mem_rdata);
+  end
+  
+  // Return packet on successful remote store:
+  logic rel_yumi, reply_lock_req, remote_store_yumi;
+  logic lock_granted;
+  logic [1:0] lock_granted_num;
+  always_comb begin
+    ret_v_o = 0;
+    ret_data_o = 0;
+    rel_yumi = 0;
+    if (remote_store_yumi) begin 
+      ret_data_o = {5'b0, from_y_cord, from_x_cord};
+      ret_v_o = 1'b1;
+    end else if (lock_req_loc) begin 
+      ret_data_o = {2'b01, lock_granted, lock_granted_num, from_y_cord, from_x_cord};
+      ret_v_o = 1'b1;
+      reply_lock_req = 1'b1;
+    end else if (rel_lock_rem) begin 
+      ret_data_o = {3'b100, rel_lock_num, send.y_cord, send.x_cord}; //TODO get rel_lock_num
+      ret_v_o = 1'b1;
+      rel_yumi = 1; //ONLY accept outgoung release if the first 2 cases are not met (ordering here is important)
+    end
+    //TODO: DEBUG MSG: if 2+ of these are active at the same time, print error msg
+  end  
+  
+  logic lock_rel_loc;
+  logic [1:0] lock_rel_num_loc;
+  logic lock_req_resp_pass;
+  logic lock_req_resp_fail;
+  assign lock_rel_loc = ret_v_i & ret_data_i[ret_packet_width_lp-1];
+  assign lock_rel_num_loc = ret_data_i[ret_packet_width_lp-5+:2];
+  assign lock_req_resp = ret_v_i & ret_data_i[ret_packet_width_lp-2];
+  assign lock_req_pass = lock_req_resp & ret_data_i[ret_packet_width_lp-3];
+  assign lock_req_fail = lock_req_resp & ~ret_data_i[ret_packet_width_lp-3];
+  
+  logic [3:0] locks_avail;
+  assign lock_granted = |locks_avail[3:0];
+  always_comb begin
+    if(locks_avail[0]) lock_granted_num = 0;
+    else if(locks_avail[1]) lock_granted_num = 1;
+    else if(locks_avail[2]) lock_granted_num = 2;
+    else if(locks_avail[3]) lock_granted_num = 3;
+    else lock_granted_num = 2'hX;
+  end
+  
+  always_ff @(posedge clk_i) begin
+    if(reset_i) 
+      locks_avail <= 4'b1111;
+    
+    if(lock_req_loc && lock_granted)
+      locks_avail[lock_granted_num] <= 1'b0;
+ 
+    if(lock_rel_loc) 
+      locks_avail[lock_rel_num_loc] <= 1'b1;
+  end
+    
+  //Handle outgoing lock requests
+  always_ff @(posedge clk_i) begin
+    if(req_lock) begin
+      lock_stat <= 'h10;
+    end else if (lock_req_fail) begin
+      lock_stat <= 'h0F;
+    end else if (lock_req_pass) begin
+      lock_stat <= {{(data_width_p-2){1'b0}},ret_data_i[ret_packet_width_lp-5+:2]};
+    end  
+  end  
+   
+   // deque if we successfully do a remote store, or if it's
+   // either kind of packet freeze instruction
+   // Added reply_lock_request to dequeue lock_req from main fifo
+   logic                       pkt_freeze, pkt_unfreeze, pkt_remote_store, pkt_unknown;
+   logic cgni_yumi;
+   assign cgni_yumi = reply_lock_req | remote_store_yumi | pkt_freeze | pkt_unfreeze;
+   
+  /***********************************
+  ************************************
+  ***********************************/
+  
    // input fifo from network
 
-   logic cgni_v, cgni_yumi, ret_cgni_v;
+   logic cgni_v,  ret_cgni_v;
    logic [packet_width_lp-1:0] cgni_data;
    
    //Do not store if we can't send a return message.
@@ -112,11 +215,10 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
 
 
    // decode incoming packet
-   logic                       pkt_freeze, pkt_unfreeze, pkt_remote_store, pkt_unknown;
    logic [data_width_p-1:0]    remote_store_data;
    logic [(data_width_p>>3)-1:0] remote_store_mask;
    logic [addr_width_p-1:0]    remote_store_addr;
-   logic                       remote_store_v, remote_store_yumi;
+   logic                       remote_store_v;
 
    if (debug_p)
    always_ff @(negedge clk_i)
@@ -139,6 +241,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
       ,.pkt_freeze_o       (pkt_freeze)
       ,.pkt_unfreeze_o     (pkt_unfreeze)
       ,.pkt_unknown_o      (pkt_unknown)
+      ,.lock_req_o         (lock_req_loc)
 
       ,.pkt_remote_store_o (remote_store_v)
       ,.data_o             (remote_store_data)
@@ -148,12 +251,9 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
       ,.mask_o             (remote_store_mask)
       );
 
-   // deque if we successfully do a remote store, or if it's
-   // either kind of packet freeze instruction
-   assign cgni_yumi = remote_store_yumi | pkt_freeze | pkt_unfreeze;
 
    // create freeze gate
-   logic                       freeze_r;
+   logic  freeze_r;
    assign freeze_o = freeze_r;
 
    always_ff @(posedge clk_i)
@@ -173,17 +273,8 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
    logic [1:0] [(data_width_p>>3)-1:0] core_mem_mask;
    logic [1:0]                         core_mem_yumi;
    logic [1:0]                         core_mem_rv;
-   logic [1:0] [data_width_p-1:0]      core_mem_rdata;
 
-   logic ret_store_cntr_p;
-   logic [data_width_p-1:0] muxed_core_mem_rdata;
-   assign muxed_core_mem_rdata = ret_store_cntr_p ? out_stores : core_mem_rdata[1];
    logic core_mem_reservation_r;
-
-   always@(posedge clk_i) ret_store_cntr_p <= ret_store_cntr;   
-
-   always@(posedge clk_i) if(ret_store_cntr_p) $display("Loading store counter at %x %x, stores: %x",my_x_i,my_y_i,muxed_core_mem_rdata);
-
    logic [addr_width_p-1:0]      core_mem_reserve_addr_r;
 
    // implement LR (load word reserved)
@@ -228,22 +319,15 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
 
        // for data port (1), either the network or the banked memory can
        // deque the item.
-	   //TODO: Added some hacky method of returning the outstanding stores counter
-	   //At the same time as yumi. Based on my understanding of the vscale core,
-	   //the remote load cannot be waiting on any other loads, so it's safe to bypass
-	   //the mem_banked_crossbar. If this is not the case, we will see it in sim.
-       ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1] | ret_store_cntr
-       //,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1]
+       ,.m_yumi_i    ({(v_o & ready_i) | core_mem_yumi[1] | ret_store_cntr | rel_yumi | req_lock_stat//TODO: yumi->valid when release or lock stat
                        , core_mem_yumi[0]})
-       ,.m_v_i       ({core_mem_rv[1] | ret_store_cntr_p, core_mem_rv[0]})
-       //,.m_v_i       (core_mem_rv)
+       ,.m_v_i       ({core_mem_rv[1] | ret_net_v, core_mem_rv[0]})
        ,.m_data_i    ( {muxed_core_mem_rdata, core_mem_rdata[0]} )
-       //,.m_data_i    ( core_mem_rdata)
        ,.my_x_i (my_x_i)
        ,.my_y_i (my_y_i)
        );
    always_ff @(negedge clk_i) 
-     if(core_mem_rv[1] & ret_store_cntr) 
+     if(core_mem_rv[1] & ret_net_v) 
 	   $display("IMPLEMENTATION ERROR: CANNOT BYPASS CROSSBAR FOR REMOTE LOADS (BARRIER ON OUTSTANDING LOADS)");	   
 	   
    bsg_manycore_pkt_encode #(.x_cord_width_p (x_cord_width_p)
@@ -262,23 +346,16 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
       ,.from_y_cord_i(my_y_i)
       ,.from_x_cord_i(my_x_i)
       ,.ret_store_cntr_o(ret_store_cntr)
+      ,.req_lock_o(req_lock)
+      ,.req_lock_stat_o(req_lock_stat)
+      ,.rel_lock_o(rel_lock_rem)
+      ,.rel_lock_num_o(rel_lock_num)
       // directly out to the network!
       ,.v_o    (v_o   )
       ,.data_o (data_o)
       );
 
-   // Return packet on successful remote store:
-   // Todo: can we remove ready signal from return network?
-		//when design is finished, load design into formal solver 
-		//and check if ret_ready_i can be fase.
-		//It's possible that the restrictions on the store network 
-		//are sufficient to restrict traffic volume.
-   // For now, we add blocking logic if ret_ready_i is 0.
-   assign ret_v_o = remote_store_yumi; //THIS IS OK NOW - I/O JUST SINKS RET PACKETS // && (my_x_i != from_x_cord || my_y_i != from_y_cord); //don't create a return packet if from cord = to cord (e.g. during software load, where we duplicate from/to coords in packets). 
 
-   assign ret_data_o = {5'b0,from_y_cord,from_x_cord}; //format packet, all empty except from addr.
-   
-	  
    // synopsys translate off
 
 

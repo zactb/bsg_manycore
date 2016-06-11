@@ -21,8 +21,12 @@ module bsg_manycore_pkt_encode
     ,input we_i
     ,output v_o
     ,output ret_store_cntr_o
+    ,output req_lock_o
+    ,output rel_lock_o
+    ,output [1:0] rel_lock_num_o 
+    ,output req_lock_stat_o
     ,output [packet_width_lp-1:0] data_o
-    );
+    ); 
 
    `declare_bsg_manycore_addr_s(addr_width_p,x_cord_width_p,y_cord_width_p);
 
@@ -34,7 +38,9 @@ module bsg_manycore_pkt_encode
    assign addr_decode = addr_i;
    assign data_o = pkt;
 
-   assign pkt.op     = addr_decode.addr[$size(addr_decode.addr)-1] ? 2'b10 : 2'b01;
+   assign pkt.op     = we_i 
+                       ? addr_decode.addr[$size(addr_decode.addr)-1] ? 2'b10 : 2'b01
+                       : addr_decode.addr[1:0]; //lock acquire or release
    assign pkt.op_ex  = mask_i;
 
    // remote top bit of address
@@ -46,8 +52,12 @@ module bsg_manycore_pkt_encode
    assign pkt.from_y_cord = from_y_cord_i;
    assign pkt.from_x_cord = from_x_cord_i;
 
-   assign v_o = addr_decode.remote & we_i & v_i;
-   assign ret_store_cntr_o = addr_decode.remote & ~we_i & v_i;
+   assign v_o = addr_decode.remote & v_i & (we_i | (~we_i && addr_decode.addr == 3)); //addr==3 is opcode for req. lock
+   assign req_lock_o = addr_decode.remote & v_i & (~we_i && addr_decode.addr == 3);
+   assign req_lock_stat_o = addr_decode.remote & v_i & (~we_i && addr_decode.addr == 2);
+   assign ret_store_cntr_o = addr_decode.remote & ~we_i & v_i & (addr_decode.addr == 1);
+   assign rel_lock_o = addr_decode.remote & ~we_i & v_i & (addr_decode.addr[1:0] == 0);
+   assign rel_lock_num_o = addr_decode.addr[3:2];
 
    // synopsys translate off
    if (debug_p)
