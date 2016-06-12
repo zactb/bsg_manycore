@@ -25,12 +25,17 @@ import  bsg_vscale_pkg::*  // vscale constants
    ,input                        ready_i
 
    ,input [data_width_p-1:0]     data_i
+   ,input [data_width_p-1:0]     data2_i
+   ,input [data_width_p-1:0]     data3_i
+
    ,output[addr_width_p-1:0]     addr_o
   );
 
   logic [63:0]                tile_no, tile_no_n; // tile number
   logic [addr_width_p-1:0]    load_addr;
   logic [data_width_p-1:0]    load_data;
+  logic [data_width_p-1:0]    load_data2;
+  logic [data_width_p-1:0]    load_data3;
   logic [y_cord_width_lp-1:0]  y_cord;
   logic [x_cord_width_lp-1:0]  x_cord;
 
@@ -43,6 +48,19 @@ import  bsg_vscale_pkg::*  // vscale constants
                      : (load_addr == tile_id_ptr_p)
                         ? data_width_p'(tile_no)
                         : data_i;
+ 
+  assign load_data2 = loaded
+                     ? data_width_p'(0)
+                     : (load_addr == tile_id_ptr_p)
+                        ? data_width_p'(tile_no)
+                        : data2_i;
+
+ assign load_data3 = loaded
+                     ? data_width_p'(0)
+                     : (load_addr == tile_id_ptr_p)
+                        ? data_width_p'(tile_no)
+                        : data3_i;
+
 
   assign y_cord     = y_cord_width_lp'(tile_no / num_cols_p);
   assign x_cord     = x_cord_width_lp'(tile_no % num_cols_p);
@@ -51,9 +69,30 @@ import  bsg_vscale_pkg::*  // vscale constants
 
    bsg_manycore_orig_packet_s pkt;
 
-   always_comb
-     begin
-        pkt.data   = load_data;
+   always_comb begin
+        case(tile_no)
+	  0: pkt.data = load_data; 	//With 4 cores, we'll have 2 master, 1 fir, 1 cordic
+	  1: pkt.data = load_data; 
+	  2: pkt.data = load_data2;
+	  3: pkt.data = load_data3;
+	  4: pkt.data = load_data;
+	  5: pkt.data = load_data;
+	  6: pkt.data = load_data;
+	  7: pkt.data = load_data;
+	  8: pkt.data = load_data;
+	  9: pkt.data = load_data;
+	  10: pkt.data = load_data;
+	  11: pkt.data = load_data;
+	  12: pkt.data = load_data2;
+	  13: pkt.data = load_data2;
+	  14: pkt.data = load_data2;	//With 16 cores we'll have 10 master, 5 fir, 1 cordic
+	  15: pkt.data = load_data2;
+ 	  
+
+	  default: pkt.data = load_data;
+	endcase
+
+//	pkt.data = load_data2;
         pkt.addr   = load_addr;
         pkt.op     = loaded ? 2'b10: 2'b01;
         pkt.op_ex  = loaded ? 4'b0000: 4'b1111;

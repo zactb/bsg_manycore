@@ -43,7 +43,9 @@ endif
 bsg_rom_%.v: %.bin
 	python $(BSG_ROM_GEN) $< bsg_rom_$* zero > $@
 
-%.run:  bsg_rom_%.v
-	$(VLOG) $(DESIGN_HDRS) $(DESIGN_SRCS) bsg_rom_$*.v $(TOP_LEVEL) -d SPMD=$* -d bsg_tiles_X=$(bsg_tiles_X) -d bsg_tiles_Y=$(bsg_tiles_Y)
+%.run:  bsg_rom_phasedetector_test.v bsg_rom_fir.v bsg_rom_cordiccart2pol.v
+	$(VLOG) $(DESIGN_HDRS) $(DESIGN_SRCS) bsg_rom_phasedetector_test.v bsg_rom_fir.v bsg_rom_cordiccart2pol.v $(TOP_LEVEL) -d SPMD=phasedetector_test -d SPMD2=fir -d SPMD3=cordiccart2pol -d bsg_tiles_X=$(bsg_tiles_X) -d bsg_tiles_Y=$(bsg_tiles_Y)
 	$(VELAB) test_bsg_manycore | grep -v Compiling
 	$(VSIM) $(TEE-CMD)
+
+

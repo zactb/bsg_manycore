@@ -2,6 +2,8 @@
 
 
 `define SPMD       ????             // test program to be loaded
+`define SPMD2 	   ????
+`define SPMD3 	   ????
 `define ROM(spmd)  bsg_rom_``spmd`` // ROM contaning the spmd
 `define MEM_SIZE   32768
 `define BANK_SIZE  1024   // in words
@@ -280,6 +282,8 @@ module test_bsg_manycore;
 
   logic [addr_width_lp-1:0]   mem_addr;
   logic [data_width_lp-1:0]   mem_data;
+  logic [data_width_lp-1:0]   mem_data2;
+  logic [data_width_lp-1:0]   mem_data3;
 
   logic [packet_width_lp-1:0] test_data_in;
   logic                       test_v_in;
@@ -409,7 +413,7 @@ module test_bsg_manycore;
             end // always @ (negedge clk)
        end
 
-  bsg_manycore_spmd_loader
+   bsg_manycore_spmd_loader
     #( .mem_size_p    (mem_size_lp)
        ,.num_rows_p    (num_tiles_y_lp)
        ,.num_cols_p    (num_tiles_x_lp)
@@ -427,8 +431,11 @@ module test_bsg_manycore;
        ,.v_o      (test_v_in)
        ,.ready_i  (hor_ready_out[W][0]                 )
        ,.data_i   (mem_data)
+       ,.data2_i  (mem_data2)
+       ,.data3_i  (mem_data3)
        ,.addr_o   (mem_addr)
      );
+
 
   `ROM(`SPMD)
     #( .addr_width_p(addr_width_lp)
@@ -437,6 +444,24 @@ module test_bsg_manycore;
      ( .addr_i (mem_addr)
       ,.data_o (mem_data)
      );
+
+  `ROM(`SPMD2)
+    #( .addr_width_p(addr_width_lp)
+      ,.width_p     (data_width_lp)
+     ) spmd_rom2
+     ( .addr_i (mem_addr)
+      ,.data_o (mem_data2)
+     );
+
+  `ROM(`SPMD3)
+    #( .addr_width_p(addr_width_lp)
+      ,.width_p     (data_width_lp)
+     ) spmd_rom3
+     ( .addr_i (mem_addr)
+      ,.data_o (mem_data3)
+     );
+
+
 
   assign ver_data_in = (2*num_tiles_x_lp*packet_width_lp)'(0);
   assign ver_v_in  = (2*num_tiles_x_lp)'(0);
