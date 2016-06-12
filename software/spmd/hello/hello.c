@@ -99,6 +99,7 @@ int receive()
 int main()
 {
   int i=0,x=1;
+  int * lock_release = (int *)0x00000000;
   volatile int * xp = (volatile int *) ((1<<31)|1);
 
   bsg_set_tile_x_y();
@@ -108,40 +109,96 @@ int main()
 
   bsg_remote_ptr_io_store(0,0x1234,0x13);
 
-/*
-  //Core (1,1) sends to core (0,0)  
-  if(bsg_volatile_access(bsg_x) == 1 && bsg_volatile_access(bsg_y) == 1) {
-    send(0, 0, &data, data);
-  }
+  while(x>0) { do { x = *xp; } while (0); }
+  barrier3(bsg_volatile_access(bsg_x), bsg_volatile_access(bsg_y), barr);
 
-  //Core (0,0) waits until data is received
-  if(bsg_x == 0 && bsg_y == 0) {
-    receive();
-  }
-*/
-  //Barrier to prevent an early finish from occurring.
-//  barrier3(bsg_volatile_access(bsg_x), bsg_volatile_access(bsg_y), barr);
-  
-  //Core 0,0 sends a series of signals
-  if ((bsg_x == 0) && (bsg_y == 0)){
-    bsg_remote_store(1,1,&data2,0xaaaaaaaa);
-    bsg_remote_store(1,1,&data2,0xbbbbbbbb);
-    bsg_remote_store(1,1,&data2,0xcccccccc);
-    bsg_remote_store(1,1,&data2,0xdddddddd);
-    bsg_remote_store(1,1,&data2,0xeeeeeeee);
-    //Busy wait until outgoing signals decreases to 0
-    while(x>0) {
-      do { x = *xp; } while (0);
-      if(i++ == 0)bsg_remote_store(0,1,&data2,x);
+   //Core 0,0
+  if((bsg_x == 0) && (bsg_y == 0)) {
+    int f = -1;
+    int p = -1;
+    while(f < 0) {
+      //Find a free and suitable slave
+      int * p2 = (int *)0x00000002;
+      if(p = *p2) {
+        f = 2;
+bsg_print_time();
+	break;
+      }
+
+      int * p3 = (int *)0x00000003;
+      if(p = *p3) {
+        f = 3;
+        break;
+      } 
     }
-    bsg_remote_store(0,1,&data2,i);
-    bsg_finish();
-  }
-  //Have all other cores just generate traffic
-  else {
-    while(1) bsg_remote_store(1,1,&data2,i++);
+    send(f/bsg_tiles_X, f%bsg_tiles_X, &data, 4);
+    send(f/bsg_tiles_X, f%bsg_tiles_X, &data2, 2);
+    receive();
+    //Show off what was received through remote store print statements
+    if(bsg_volatile_access(data) == 6) 
+      send(0, 1, &data2, 1);
+//      bsg_finish();
+ 
+  //Core 0,1
+  } else if((bsg_x == 0) && (bsg_y == 1)) {
+    int f = -1;
+    int p = -1;
+    while(f < 0) {
+      //Find a free and suitable slave
+      int * p2 = (int *)0x00000002;
+      if(p = *p2) {
+        f = 2;
+bsg_print_time();
+	break;
+      }
+
+      int * p3 = (int *)0x00000003;
+      if(p = *p3) {
+        f = 3;
+        break;
+      } 
+    }
+    send(f/bsg_tiles_X, f%bsg_tiles_X, &data, 4);
+    send(f/bsg_tiles_X, f%bsg_tiles_X, &data2, 7);
+    receive();
+    receive();
+    //Show off what was received through remote store print statements
+    if(bsg_volatile_access(data) == 11) 
+      bsg_finish();
+ 
+
+
+  //Core 1,0
+  } else if((bsg_x == 1) && (bsg_y == 0)) {
+    while(1) {
+      //Wait for 2 inputs to be passed
+      receive();
+      receive();
+      int result = bsg_volatile_access(data) + bsg_volatile_access(data2);
+      //Send the data back along with an unlock request?
+//      bsg_remote_store(0, 0, &data, result);
+      send(0, 0, &data, result);
+      while(x>0) { do { x = *xp; } while (0); }
+      //Release lock
+      bsg_remote_store(1, 0, lock_release, 0);
+    }
+
+  //Core 1,1
+  } else if((bsg_x == 1) && (bsg_y == 1)) {
+    while(1) {
+      //Wait for 2 inputs to be passed
+      receive();
+      receive();
+      int result = bsg_volatile_access(data) + bsg_volatile_access(data2);
+      //Send the data back along with an unlock request?
+      bsg_remote_store(0, 0, &data, result);
+      while(x>0) { do { x = *xp; } while (0); }
+      //Release lock
+      bsg_remote_store(1, 1, lock_release, 0);
+    }
   }
 
+  bsg_finish();
   bsg_wait_while(1);
 }
 
