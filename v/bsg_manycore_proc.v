@@ -67,8 +67,6 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
    
    logic req_lock, req_lock_stat, rel_lock_rem, lock_req_loc; //TODO use
    logic [1:0] rel_lock_num;
-   logic out_store_v;
-   assign out_store_v = v_o & ready_i & (send.y_cord != num_tiles_y_p); //Prevents against incrementing when sending to IO, as we cannot expect a return message.) 
 
    logic [str_cntr_wid_lp:0] out_stores; //minimum width is ceil(log(num cores * 2 directions * pipeline depth))
    logic ret_store_cntr; //returns the store counter on a remote load.
@@ -82,8 +80,11 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
      if(v_i & ready_o && recv.from_y_cord < num_tiles_y_p) $display("\tRECV PKT FROM %x, %x, TO %x, %x, ADDR %x, DATA %x, OP %x", recv.from_x_cord, recv.from_y_cord, my_x_i, my_y_i, recv.addr, recv.data, recv.op);
    end
 
+   
+  logic out_store_v;
+  assign out_store_v = v_o & ready_i & (send.y_cord != num_tiles_y_p); //Prevents against incrementing when sending to IO, as we cannot expect a return message.) 
   logic store_counter_dec;
-  assign store_counter_dec = ret_v_i & ~ret_data_i[ret_packet_width_lp-2]; //2nd to last bit off => reply to pkt from network (lock req or store)
+  assign store_counter_dec = ret_v_i  & ret_ready_o & ~ret_data_i[ret_packet_width_lp-1]; //Don't dec if lock release comes in -- It is not a reply.  
   always_ff @(posedge clk_i) begin
      if (reset_i) begin 
        out_stores <= 0;
@@ -101,20 +102,14 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
   end  
   
   logic [data_width_p-1:0] lock_stat;
-  logic ret_net_v, req_lock_stat_prev;
+  logic ret_net_v, req_lock_stat_prev, req_store_cntr_prev;
   logic [data_width_p-1:0] muxed_core_mem_rdata;
   logic [1:0] [data_width_p-1:0]      core_mem_rdata;
   assign muxed_core_mem_rdata = ret_net_v ? 
                                 (req_lock_stat_prev ? lock_stat : out_stores)
                                 : core_mem_rdata[1];
 
-  always@(posedge clk_i) 
-  begin 
-    ret_net_v <= ret_store_cntr | req_lock_stat | rel_lock_rem;   
-    req_lock_stat_prev <= req_lock_stat;
-    if(ret_net_v) $display("Loading store counter at %x %x, stores: %x",my_x_i,my_y_i,muxed_core_mem_rdata);
-  end
-  
+
   // Return packet on successful remote store:
   logic rel_yumi, reply_lock_req, remote_store_yumi;
   logic lock_granted;
@@ -132,12 +127,24 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
       ret_v_o = 1'b1;
       reply_lock_req = 1'b1;
     end else if (rel_lock_rem) begin 
-      ret_data_o = {3'b100, rel_lock_num, send.y_cord, send.x_cord}; //TODO get rel_lock_num
+      ret_data_o = {3'b100, rel_lock_num, send.y_cord, send.x_cord}; 
       ret_v_o = 1'b1;
       rel_yumi = 1; //ONLY accept outgoung release if the first 2 cases are not met (ordering here is important)
     end
-    //TODO: DEBUG MSG: if 2+ of these are active at the same time, print error msg
   end  
+  
+  always@(posedge clk_i) 
+  begin 
+    ret_net_v <= ret_store_cntr | req_lock_stat | rel_yumi; //WAS: rel_lock_rem;  CHANGED: rel_yumi; REASON: Release can be blocked by the other 2 types of ret net pkts. 
+    req_lock_stat_prev <= req_lock_stat;
+	req_store_cntr_prev <= ret_store_cntr;
+    if(req_store_cntr_prev) $display("Loading store counter at %x %x, stores: %x",my_x_i,my_y_i,muxed_core_mem_rdata);
+  end
+  
+  
+  always_ff @(negedge clk_i) if( (remote_store_yumi & lock_req_loc) | (lock_req_loc & rel_lock_rem) | (remote_store_yumi & rel_lock_rem) ) 
+    $display("Conflicting outputs: remote_store_yumi = %x\tlock_req_loc = %x\trel_lock_rem = %x\t\tRelease can be blocked  by other two.",
+	  remote_store_yumi, lock_req_loc, rel_lock_rem);
   
   logic lock_rel_loc;
   logic [1:0] lock_rel_num_loc;
@@ -173,7 +180,9 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
     
   //Handle outgoing lock requests
   always_ff @(posedge clk_i) begin
-    if(req_lock) begin
+    if(reset_i) begin
+	  lock_stat <= 0;
+    end else if(req_lock) begin
       lock_stat <= 'h10;
     end else if (lock_req_fail) begin
       lock_stat <= 'h0F;
