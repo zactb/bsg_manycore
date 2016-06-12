@@ -99,7 +99,7 @@ int receive()
 int main()
 {
   int i=0,x=1;
-  volatile int * xp = (volatile int *) (1<<31);
+  volatile int * xp = (volatile int *) (1<<31)|1;
 
   bsg_set_tile_x_y();
 

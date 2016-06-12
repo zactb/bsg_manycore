@@ -48,7 +48,12 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
   /***********************************
   **  Return Network Augmentations  **
   ***********************************/
-   
+  /*
+   always_ff @(negedge clk_i)
+   if(my_x_i ==0  && my_y_i == 0) $display(
+   "v_i = %x\tdata_i = %x\tready_o = %x\tcgni_v = %x\tcgni_data = %x\tcgni_yumi = %x\t\treply_lock_req = %x\tremote_store_yumi = %x\tpkt_freeze = %x\tpkt_unfreeze = %x",
+   v_i,data_i,ready_o,cgni_v, cgni_data, cgni_yumi, reply_lock_req, remote_store_yumi, pkt_freeze, pkt_unfreeze);
+   //*/
    // pkt from coords
    logic  [x_cord_width_p-1:0] from_x_cord;
    logic  [y_cord_width_p-1:0] from_y_cord;
@@ -118,6 +123,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
     ret_v_o = 0;
     ret_data_o = 0;
     rel_yumi = 0;
+    reply_lock_req = 1'b0;
     if (remote_store_yumi) begin 
       ret_data_o = {5'b0, from_y_cord, from_x_cord};
       ret_v_o = 1'b1;
