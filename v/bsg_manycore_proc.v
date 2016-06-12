@@ -60,7 +60,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
    //TODO: don't increment store counter on a lock request.
    //don't dec store counter on a return message.
    
-   logic req_lock, req_lock_stat, rel_lock_rem; //TODO use
+   logic req_lock, req_lock_stat, rel_lock_rem, lock_req_loc; //TODO use
    logic [1:0] rel_lock_num;
    logic out_store_v;
    assign out_store_v = v_o & ready_i & (send.y_cord != num_tiles_y_p); //Prevents against incrementing when sending to IO, as we cannot expect a return message.) 
@@ -135,8 +135,9 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
   
   logic lock_rel_loc;
   logic [1:0] lock_rel_num_loc;
-  logic lock_req_resp_pass;
-  logic lock_req_resp_fail;
+  logic lock_req_pass;
+  logic lock_req_fail;
+  logic lock_req_resp;
   assign lock_rel_loc = ret_v_i & ret_data_i[ret_packet_width_lp-1];
   assign lock_rel_num_loc = ret_data_i[ret_packet_width_lp-5+:2];
   assign lock_req_resp = ret_v_i & ret_data_i[ret_packet_width_lp-2];
@@ -275,6 +276,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
    logic [1:0]                         core_mem_rv;
 
    logic core_mem_reservation_r;
+   logic core_mem_reserve_1;
    logic [addr_width_p-1:0]      core_mem_reserve_addr_r;
 
    // implement LR (load word reserved)
