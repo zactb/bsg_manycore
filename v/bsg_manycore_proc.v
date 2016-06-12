@@ -79,7 +79,7 @@ module bsg_manycore_proc #(x_cord_width_p   = "inv"
 
    always@(posedge clk_i) begin
      if(v_o & ready_i) $display("SENT PKT\t FROM %x, %x, TO %x, %x, ADDR %x, DATA %x, OP %x \t OUT STORES %x", my_x_i, my_y_i, send.x_cord, send.y_cord, send.addr, send.data, send.op, out_stores);
-     if(v_i & ready_o/* && recv.from_y_cord < num_tiles_y_p*/) $display("\tRECV PKT FROM %x, %x, TO %x, %x, ADDR %x, DATA %x, OP %x", recv.from_x_cord, recv.from_y_cord, my_x_i, my_y_i, recv.addr, recv.data, recv.op);
+     if(v_i & ready_o && recv.from_y_cord < num_tiles_y_p) $display("\tRECV PKT FROM %x, %x, TO %x, %x, ADDR %x, DATA %x, OP %x", recv.from_x_cord, recv.from_y_cord, my_x_i, my_y_i, recv.addr, recv.data, recv.op);
    end
 
   logic store_counter_dec;
