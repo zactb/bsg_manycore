@@ -40,7 +40,7 @@ module bsg_manycore_pkt_encode
 
    assign pkt.op     = we_i 
                        ? addr_decode.addr[$size(addr_decode.addr)-1] ? 2'b10 : 2'b01
-                       : addr_decode.addr[1:0]; //lock acquire or release
+                       : addr_decode.addr[3:2]; //lock acquire or release
    assign pkt.op_ex  = mask_i;
 
    // remote top bit of address
@@ -52,12 +52,12 @@ module bsg_manycore_pkt_encode
    assign pkt.from_y_cord = from_y_cord_i;
    assign pkt.from_x_cord = from_x_cord_i;
 
-   assign v_o = addr_decode.remote & v_i & (we_i | (~we_i && addr_decode.addr == 3)); //addr==3 is opcode for req. lock
-   assign req_lock_o = addr_decode.remote & v_i & (~we_i && addr_decode.addr == 3);
-   assign req_lock_stat_o = addr_decode.remote & v_i & (~we_i && addr_decode.addr == 2);
-   assign ret_store_cntr_o = addr_decode.remote & ~we_i & v_i & (addr_decode.addr == 1);
-   assign rel_lock_o = addr_decode.remote & ~we_i & v_i & (addr_decode.addr[1:0] == 0);
-   assign rel_lock_num_o = addr_decode.addr[3:2];
+   assign v_o = addr_decode.remote & v_i & (we_i | (~we_i && addr_decode.addr[3:2] == 3)); //addr==3 is opcode for req. lock
+   assign req_lock_o = addr_decode.remote & v_i & (~we_i && addr_decode.addr[3:2] == 3);
+   assign req_lock_stat_o = addr_decode.remote & v_i & (~we_i && addr_decode.addr[3:2] == 2);
+   assign ret_store_cntr_o = addr_decode.remote & ~we_i & v_i & (addr_decode.addr[3:2] == 1);
+   assign rel_lock_o = addr_decode.remote & ~we_i & v_i & (addr_decode.addr[3:2] == 0);
+   assign rel_lock_num_o = addr_decode.addr[5:4];
 
    // synopsys translate off
    if (debug_p)
@@ -77,6 +77,7 @@ module bsg_manycore_pkt_encode
           begin
              $error ("%m store to remote unaligned address %x", addr_i);
           end*/
+	  //if(v_i)$display("%x",addr_i);
      end
    // synopsys translate on
 
