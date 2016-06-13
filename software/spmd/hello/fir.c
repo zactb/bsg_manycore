@@ -89,61 +89,25 @@ static const coef_t c_Q[N] = {	0,    	0,    	1,    	0,    	1,	0,    	1,    	0,
 				1,  	1,    	1,    	0,    	1,    	0,  	1,    	1 
 };
 
-static int regs_I[N];
-static int regs_Q[N];
-
-void shift_I (int x) {
-	int i;
-	for(i=N-1;i>0;i--){
-		regs_I[i] = regs_I[i-1];
-	}
-	regs_I[0]=x;
+void accum_xQ(int *acc, int *input) {
+ 	int i;
+	*acc=0;
+	for(i=N-1; i>=0; i--) {
+  	  *acc = c_Q[i] ? *acc+input[i+1] : *acc-input[i+1];
+     	}
 }
 
-void shift_Q (int x) {
-	int i;
-	for(i=N-1;i>0;i--){
-		regs_Q[i] = regs_Q[i-1];
-	}
-	regs_Q[0]=x;
-}
-
-void accum_II(int *acc) {
+void accum_xI(int *acc, int *input) {
 	int i;
 	*acc=0;
-	for(i=N-1;i>=0;i--){
-		*acc = c_I[i] ? *acc+regs_I[i] : *acc-regs_I[i];
-
-	}
-}
-
-void accum_IQ(int *acc) {
-	int i;
-	*acc=0;
-	for(i=N-1;i>=0;i--){
-		*acc = c_Q[i] ? *acc+regs_I[i] : *acc-regs_I[i];
-	}
-}
-
-void accum_QI(int *acc) {
-	int i;
-	*acc=0;
-	for(i=N-1;i>=0;i--){
-		*acc = c_I[i] ? *acc+regs_Q[i] : *acc-regs_Q[i];
-	}
-}
-
-void accum_QQ(int *acc) {
-	int i;
-	*acc=0;
-	for(i=N-1;i>=0;i--){
-		*acc = c_Q[i] ? *acc+regs_Q[i] : *acc-regs_Q[i];
-	}
+	for(i=N-1; i>=0; i--) {
+  	  *acc = c_I[i] ? *acc+input[i+1] : *acc-input[i+1];
+     	}
 }
 
 int main()
 {
-  int i=0,x=-1,lock_stat_ptr=0x8, lock_req_ptr=0xC, dummy;
+  int x=-1,lock_stat_ptr=0x8, lock_req_ptr=0xC, dummy;
   //volatile int * xp = (volatile int *) (0x80000001);
   //bsg_remote_int_ptr lock_req_ptr = bsg_remote_ptr(1,1,0xC);
   
@@ -154,28 +118,33 @@ int main()
 
   bsg_remote_ptr_io_store(0,0x1234,0x13);
 
+  int input[34][4];
+  //Tell the other cores the addresses of my inputs x and y
+  bsg_volatile_access(input); 
 
-/*
- * Put fir code here
- */
+  int tileNum = bsg_volatile_access(bsg_x) + bsg_volatile_access(bsg_y)*bsg_tiles_X;
+  for(int index = 0; index < bsg_tiles_X*bsg_tiles_Y; index++) {
+    bsg_remote_store(index%bsg_tiles_X, index/bsg_tiles_X, (int *)(tileNum << 2), input);
+  }
 
-  //(int I, int Q, int *X, int *Y) {
-  int I, Q;
-  int * X;
-  int * Y;
+  barrier3(bsg_x, bsg_y, barr);
 
-  int II, IQ, QI, QQ;
-	
-  shI: shift_I(I);
-  shQ: shift_Q(Q);
+  int result;
+  while(1) {
+    for(int i = 0; i < 4; i++) {
+      if(input[i][0] == 1 || input[i][0] == 2) {
+bsg_print_time();
+        if(input[i][0] == 1) {
+          accum_xI(&result, input[i]);
+        } else if(input[i][0] == 2) {
+          accum_xQ(&result, input[i]);
+        }
 
-  aII: accum_II(&II);
-  aQI: accum_QI(&QI);
-  aIQ: accum_IQ(&IQ);
-  aQQ: accum_QQ(&QQ);
-
-  *X = II+QQ;
-  *Y = QI-IQ;
+        int master = input[i][33];
+        bsg_remote_store(master%bsg_tiles_X, master/bsg_tiles_X, (int *)*(int *)master, result);
+        bsg_remote_store(master%bsg_tiles_X, master/bsg_tiles_X, ((int *)*(int *)master)+1, result);
+      }
+    }
+  }
 }
-
 

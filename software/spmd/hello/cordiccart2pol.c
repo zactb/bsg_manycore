@@ -91,40 +91,60 @@ int main()
 
 /*
  * Put cordiccart2pol code here
- */ 
-/*
-  int x; 
-  int y;
-  int * r;
-  int * theta;
+ */
 
-  int x_sh, y_sh;
-  *theta = 0;
-  *r = 0;
-
-  //if in 2nd/3rd quadrants, invert
-  *theta = x < 0 ? (y < 0 ? (int)(*theta - PI) : (int)(*theta + PI)) : (int)*theta;
-  y = x < 0 ? (int)-y : y;
-  x = x < 0 ? (int)-x : x;
-
-  //apply rotations of <1, (+/-)0.5^i> to approach 0
-  for(i=0; i<NO_ITER; i++) {
-    x_sh = x>>i;
-    y_sh = y>>i;
-    *theta = y < 0 ? *theta - angles[i] : *theta + angles[i];
-    x = y < 0 ? (int)(x-y_sh) :(int) (x+y_sh); 	
-    y = y < 0 ? (int)(y+x_sh) :(int) (y-x_sh);
+  //Tell the other cores the addresses of my inputs x and y
+  int input[4][4];		// [4 locks] * [valid, x, y, ret_addr]
+  int tileNum = bsg_volatile_access(bsg_x) + bsg_volatile_access(bsg_y)*bsg_tiles_X;
+  for(int index = 0; index < bsg_tiles_X*bsg_tiles_Y; index++) {
+    bsg_remote_store(index%bsg_tiles_X, index/bsg_tiles_X, (int *)(tileNum << 2), input);
   }
+ 
+  barrier3(bsg_x, bsg_y, barr);
+ 
+  while(1) {
+    //Idle until someone claims it
+    for(int j = 0; j < 4; j++) {
+      if(input[j][0] == 1) {
 
-  //adjust radius for expansion
-  int xl = (x << 16) >> 16;
-  int kl = (Kvalues[NO_ITER-1] << 16) >> 16;
-  int xh = x >> 16;
-  int kh = Kvalues[NO_ITER-1] >> 16;
+        int x = input[j][1];
+        int y = input[j][2];
+        int r = 0;
+        int theta = 0;
+
+        int x_sh, y_sh;
+
+        //if in 2nd/3rd quadrants, invert
+        theta = x < 0 ? (y < 0 ? (int)(theta - PI) : (int)(theta + PI)) : (int)theta;
+        y = x < 0 ? (int)-y : y;
+        x = x < 0 ? (int)-x : x;
+
+        //apply rotations of <1, (+/-)0.5^i> to approach 0
+        for(i=0; i<NO_ITER; i++) {
+          x_sh = x>>i;
+          y_sh = y>>i;
+          theta = y < 0 ? theta - angles[i] : theta + angles[i];
+          x = y < 0 ? (int)(x-y_sh) :(int) (x+y_sh); 	
+          y = y < 0 ? (int)(y+x_sh) :(int) (y-x_sh);
+        }
+
+        //adjust radius for expansion
+        int xl = (x << 16) >> 16;
+        int kl = (Kvalues[NO_ITER-1] << 16) >> 16;
+        int xh = x >> 16;
+        int kh = Kvalues[NO_ITER-1] >> 16;
   
-  int temp = ((xl*kl) >> 24) + (((xh*kl)+(xl*kh)) >> 8) + ((xh*kh) << 8);
-  *r = temp;
-*/
+        int temp = ((xl*kl) >> 24) + (((xh*kl)+(xl*kh)) >> 8) + ((xh*kh) << 8);
+        r = temp;
+
+        int * sent = (int *)*(int *)(input[j][3]);
+        //Send the results
+        bsg_remote_store(input[j][3]/bsg_tiles_X, input[j][3]/bsg_tiles_Y, sent, r);
+        bsg_remote_store(input[j][3]/bsg_tiles_X, input[j][3]/bsg_tiles_Y, sent+1, theta);
+        bsg_remote_store(input[j][3]/bsg_tiles_X, input[j][3]/bsg_tiles_Y, received, 1);
+      }
+    }
+  }
 }
 
 

@@ -76,16 +76,28 @@ int main()
 
   bsg_remote_ptr_io_store(0,0x1234,0x13);
 
+  int input[bsg_tiles_X*bsg_tiles_Y*2];
 
+  int tileNum = bsg_volatile_access(bsg_x) + bsg_volatile_access(bsg_y)*bsg_tiles_X;
+  for(int index = 0; index < bsg_tiles_X*bsg_tiles_Y; index++) {
+    bsg_remote_store(index%bsg_tiles_X, index/bsg_tiles_X, (int *)(tileNum << 2), input);
+  }
+  
+  barrier3(bsg_x, bsg_y, barr);
 
   const int    SAMPLES=64;
+
+  int ptrs[bsg_tiles_X*bsg_tiles_Y];
 
   int s_I = 0, s_Q=0;
   int signal_I, signal_Q, output_R, output_Theta;
   signal_I = 0;
   signal_Q = 0;
-
+  int A = 0;
+  int B = 0;
   int o_R=0, o_T = 0;
+
+  int received[bsg_tiles_X*bsg_tiles_Y];
 
   int gold_R;
   int gold_Theta;
@@ -97,42 +109,124 @@ int main()
   int sum_R_gold=0;
   int sum_Theta=0;
   int sum_Theta_gold=0;
+  int core_ID = bsg_volatile_access(bsg_x) + bsg_tiles_X*bsg_volatile_access(bsg_y);
+  int IIgranted = 0, IQgranted = 0, QIgranted = 0, QQgranted = 0;
+  int II_lck, IQ_lck, QI_lck, QQ_lck;
+  int IIindex, IQindex, QIindex, QQindex;
 
 
-  for (i=0;i<SAMPLES;i++) {
-    gold_R = gold[i*2];
-    gold_Theta = gold[i*2+1];
-    signal_I = input_i[i];
-    signal_Q = input_q[i];
+  //Iterate through sets of 32 data
+  for(int k = 0; k < SAMPLES-32; k++) {
+    //Iterate over cores
+    for(int j = 0; 1; j = (j+1)%bsg_tiles_X*bsg_tiles_Y) {
 
-    int A = 0;
-    int B = 0;
-    fir(signal_I, signal_Q, &A, &B);
-    cordiccart2pol(A, B, &o_R, &o_T);
+      if(j == 2) {
+        //Try requesting a lock
+      //  bsg_remote_load(j%bsg_tiles_X, j/bsg_tiles_X, lock_req_ptr,x);
+       // x=0xFF;
+     while(x>3)   //bsg_remote_load(j/bsg_tiles_X, j%bsg_tiles_X, lock_stat_ptr, x); 
+        bsg_remote_load(bsg_y, bsg_x, lock_stat_ptr, x); 
+//bsg_print_time();
+      if(x <= 3) { // || j==otherstuff
+        //Find out which core that you want has its lock open
+        if(!IIgranted) {
+//bsg_print_time();
+          //Calculating II
+          for(int p = 1; p < 33; p++) 
+            bsg_remote_store(j%bsg_tiles_X, j/bsg_tiles_X, ((int *)*(int *)(k<<2))+p, input_i[p+k]);
+          bsg_remote_store(j%bsg_tiles_X, j/bsg_tiles_X, ((int *)*(int *)(k<<2))+33, core_ID);
+          bsg_remote_store(j%bsg_tiles_X, j/bsg_tiles_X, ((int *)*(int *)(k<<2)), 1);
+          IIgranted = 1;
+          IIindex = j;
+          II_lck = x;
 
-    error_R = error_R + abs(o_R - gold_R);
-    error_Theta = error_Theta + abs(o_T - gold_Theta);
+        } else if(!IQgranted) {
+          //Calculating IQ
+          for(int p = 1; p < 33; p++)
+            bsg_remote_store(j%bsg_tiles_X, j/bsg_tiles_X, ((int *)*(int *)(k<<2))+p, input_i[p+k]);
+          bsg_remote_store(j%bsg_tiles_X, j/bsg_tiles_X, ((int *)*(int *)(k<<2))+33, core_ID);
+          bsg_remote_store(j%bsg_tiles_X, j/bsg_tiles_X, (int *)*(int *)(k<<2), 2);
+          IQgranted = 1;
+          IQindex = j;
+          IQ_lck = x;
+        } else if(!QIgranted) {
+          //Calculating QI
+          for(int p = 1; p < 33; p++)
+            bsg_remote_store(j%bsg_tiles_X, j/bsg_tiles_X, ((int *)*(int *)(k<<2))+p, input_q[p+k]);
+          bsg_remote_store(j%bsg_tiles_X, j/bsg_tiles_X, ((int *)*(int *)(k<<2))+33, core_ID);
+          bsg_remote_store(j%bsg_tiles_X, j/bsg_tiles_X, ((int *)*(int *)(k<<2)), 1);
+          QIgranted = 1;
+          QIindex = j;
+ 	  QI_lck = x;
+  
+        } else if(!QQgranted) {
+          //Calculating QQ
+          for(int p = 1; p < 33; p++)
+            bsg_remote_store(j%bsg_tiles_X, j/bsg_tiles_X, ((int *)*(int *)(k<<2))+p, input_q[p+k]);
+          bsg_remote_store(j/bsg_tiles_X, j/bsg_tiles_X, ((int *)*(int *)(k<<2))+33, core_ID);
+          bsg_remote_store(j%bsg_tiles_X, j/bsg_tiles_X, ((int *)*(int *)(k<<2)), 2);
+          QQgranted = 1; 
+          QQindex = j;
+          QQ_lck = x;
+        }}
+      } 
+      //Free the locks that are done
+      if(received[IIindex] && II_lck != -1) { 
+        bsg_remote_load(IIindex/bsg_tiles_X, IIindex%bsg_tiles_X, II_lck << 4, x);
+        II_lck = -1;
+      }
+      if(received[IQindex] && IQ_lck != -1) {
+        bsg_remote_load(IQindex/bsg_tiles_X, IQindex%bsg_tiles_X, IQ_lck << 4, x);
+        IQ_lck = -1;
+      }
+      if(received[QIindex] && QI_lck != -1) {
+        bsg_remote_load(QIindex/bsg_tiles_X, QIindex%bsg_tiles_X, QI_lck << 4, x);
+        QI_lck = -1;
+      }
+      if(received[QQindex] && QQ_lck != -1) {
+        bsg_remote_load(QQindex/bsg_tiles_X, QQindex%bsg_tiles_X, QQ_lck << 4, x);
+        QQ_lck = -1;
+      }
+      //If they have all arrived
+      if(received[IIindex] & received[IQindex] & received[QIindex] & received[QQindex]) {
+        received[IIindex] = 0;
+        received[IQindex] = 0;
+        received[QIindex] = 0;
+        received[QQindex] = 0;
+        int A = input[IIindex]+input[QQindex];
+        int B = input[QIindex]-input[IQindex];
+  	//This was hardcoded
+        bsg_remote_load(1, 1, lock_req_ptr,x);
+        x=0xFF;
+        //Busywait until core is obtained
+        while(x > 3) {
+          bsg_remote_load(bsg_x, bsg_y, lock_stat_ptr, x); 
+        }
+        int * cordic_ptr = &(((int *)*(int *)0x03)[x*3]);
+        bsg_remote_store(1, 1, cordic_ptr, A);
+        bsg_remote_store(1, 1, cordic_ptr+1, B);
+        bsg_remote_store(1, 1, cordic_ptr+2, core_ID);
+        bsg_wait_while(!received[x]);  
+        //Free the lock
+        bsg_remote_load(1, 1, x << 4, x);
+        error_R = error_R + abs(input[2*3] - gold_R); 	//o_R
+        error_Theta = error_Theta + abs(input[2*3+1] - gold_Theta);  //o_T
+        IIgranted = 0;
+        IQgranted = 0;
+        QIgranted = 0;
+        QQgranted = 0;
+        break;
+      }
+    }
+  }
+    //Check incoming data bsg_wait_while(incoming data);
+    //process incoming data
+        
+/* 
     sum_R_gold = sum_R_gold+ (abs(gold_R) >> 8);
     sum_R = sum_R+ (abs(o_R) >> 8);
     sum_Theta_gold = sum_Theta_gold+ abs(gold_Theta);
     sum_Theta = sum_Theta + abs(o_T);
-  }
-
-  //Write the results somewhere?
-/*
-  //Checking error
-  if(error_R<1677 and error_Theta<1677) {
-	  printf("error_R=%f, error_Theta=%f\n", float(error_R)/16777216, float(error_Theta)/16777216);
-	  printf("percent error Theta=%f\n", float(100*abs((sum_Theta - sum_Theta_gold)))/sum_Theta_gold);
-	  printf("percent error R=%f\n", float(100*abs((sum_R - sum_R_gold)))/sum_R_gold);
-	  printf("PASS\n");
-  }
-  else{
-	  printf("error_R=%f, error_Theta=%f\n", float(error_R)/16777216, float(error_Theta)/16777216);
-	  printf("percent error Theta=%f\n", fabs(float(100*(sum_Theta - sum_Theta_gold))/sum_Theta_gold));
-	  printf("percent error R=%f\n", fabs(float(100*(sum_R - sum_R_gold))/sum_R_gold));
-	  printf("FAIL\n");
-  }
 */
 
 
